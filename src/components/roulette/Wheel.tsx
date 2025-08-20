@@ -1,11 +1,5 @@
+import type { WheelProps } from "@/lib/types";
 import { useEffect, useState } from "react";
-
-interface WheelProps {
-  winningNumber: number | null;
-  isSpinning: boolean;
-  onSpinEnd?: () => void;
-  winningAmount?: number;
-}
 
 const wheelNumMap = [
   0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
@@ -21,13 +15,8 @@ const getWheelRotation = (num: number) => {
 };
 
 const getBallRotation = (num: number) => {
-  // La bola siempre debe terminar en la posición de las 12 del reloj (0 grados)
-  // independientemente del número ganador
-  // Solo cambiamos las vueltas que da para el efecto visual, pero la posición final es siempre la misma
-
-  const baseRotation = -2160; // Múltiples vueltas en sentido contrario para el efecto visual
-  const finalPosition = 0; // Siempre termina en las 12 del reloj (donde está el indicador)
-
+  const baseRotation = -2160;
+  const finalPosition = 0;
   const ballPosition = baseRotation + finalPosition;
 
   console.log(
@@ -98,7 +87,7 @@ export const Wheel = ({
         alt="Roulette Wheel"
         className={`absolute w-4/5 h-4/5 z-10 ${
           isAnimationActive
-            ? "transition-transform duration-[6s] cubic-bezier(0.1, 0.7, 0.1, 1)"
+            ? "transition-transform duration-[4s] cubic-bezier(0.1, 0.7, 0.1, 1)"
             : ""
         }`}
         style={{ transform: `rotate(${finalRotation.wheel}deg)` }}
@@ -107,7 +96,7 @@ export const Wheel = ({
       <div
         className={`absolute w-full h-full flex items-center justify-center z-20 ${
           isAnimationActive
-            ? "transition-transform duration-[6s] cubic-bezier(0.1, 0.7, 0.1, 1)"
+            ? "transition-transform duration-[4s] cubic-bezier(0.1, 0.7, 0.1, 1)"
             : ""
         }`}
         style={{ transform: `rotate(${finalRotation.ball}deg)` }}

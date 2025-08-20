@@ -9,7 +9,7 @@ import type { Socket } from "socket.io-client";
  */
 export interface BetNumber {
   number: number;
-  color: 'r' | 'b' | 'g';
+  color: "r" | "b" | "g";
 }
 
 // --------------------
@@ -18,10 +18,6 @@ export interface BetNumber {
 /**
  * Representa un historial de apuestas con los números y la cantidad apostada.
  */
-export interface BetHistoryItem {
-  numbers: BetNumber[];
-  amount: number;
-}
 
 // --------------------
 // ChipButton
@@ -29,12 +25,6 @@ export interface BetHistoryItem {
 /**
  * Propiedades de un componente de botón para fichas de apuesta.
  */
-export interface ChipButtonProps {
-  amount: number;
-  onClick?: (amount: number) => void;
-  // `button` es una referencia a un elemento DOM, debería ser opcional o manejado internamente.
-  // button: HTMLButtonElement;
-}
 
 /**
  * Métodos disponibles para un componente de botón de ficha.
@@ -48,21 +38,6 @@ export interface ChipButtonMethods {
  * Tipo completo para un botón de ficha, combinando propiedades y métodos.
  */
 export type ChipButtonType = ChipButtonProps & ChipButtonMethods;
-
-// --------------------
-// RouletteBetButton
-// --------------------
-/**
- * Propiedades para un botón de apuesta en la ruleta.
- */
-export interface RouletteBetButtonProps {
-  numbers: BetNumber[];
-  label?: string;
-  multiplier?: number;
-  // `button` y `chipElement` deberían ser opcionales ya que son referencias a elementos DOM.
-  button?: HTMLButtonElement;
-  chipElement?: HTMLElement;
-}
 
 /**
  * Métodos disponibles para un botón de apuesta en la ruleta.
@@ -78,7 +53,8 @@ export interface RouletteBetButtonMethods {
 /**
  * Tipo completo para un botón de apuesta en la ruleta.
  */
-export type RouletteBetButtonType = RouletteBetButtonProps & RouletteBetButtonMethods;
+export type RouletteBetButtonType = RouletteBetButtonProps &
+  RouletteBetButtonMethods;
 
 // --------------------
 // MusicPlayer
@@ -115,15 +91,7 @@ export type MusicPlayerType = MusicPlayerProps & MusicPlayerMethods;
 /**
  * Propiedades y métodos para el componente de la rueda de la ruleta.
  */
-export interface WheelProps {
-  container: HTMLElement;
-  // `spin` es un método, debería estar en una interfaz separada.
-  // spin: (number: number, color: string) => void;
-}
 
-/**
- * Métodos para la rueda de la ruleta.
- */
 export interface WheelMethods {
   spin: (winningNumber: number, winningColor: string) => void;
 }
@@ -151,7 +119,11 @@ export interface RouletteOptions {
  * Clase principal para gestionar el juego de la ruleta.
  */
 export declare class Roulette {
-  constructor(container: HTMLElement, musicPlayer: MusicPlayerType, options?: RouletteOptions);
+  constructor(
+    container: HTMLElement,
+    musicPlayer: MusicPlayerType,
+    options?: RouletteOptions
+  );
 
   // Propiedades
   balance: number;
@@ -204,12 +176,7 @@ export declare class Roulette {
 /**
  * Propiedades para inicializar un juego de ruleta.
  */
-export type RouletteGameProps = {
-  username: string;
-  initialBalance?: number;
-  onLeave: () => void;
-  // other props
-};
+
 // --------------------
 // Single join response
 // --------------------
@@ -227,7 +194,7 @@ export interface Player {
   score: number;
 }
 
-export type GameMode = 'single' | 'tournament';
+export type GameMode = "single" | "tournament";
 
 export interface MenuProps {
   onSelectMode: (mode: GameMode) => void;
@@ -238,4 +205,90 @@ export interface RouletteProps {
   mode: GameMode;
   player?: Player;
   onLeave: () => void;
+}
+
+export interface BetButtonProps {
+  number: BetNumber;
+  betAmount: number;
+  onPlaceBet: () => void;
+  colorClass: string;
+}
+
+export interface ButtonProps {
+  imageURL: string;
+  size?: number;
+  label?: string;
+  onClick: () => void;
+  isDisabled?: boolean;
+}
+
+export interface ChipButtonProps {
+  amount: number;
+  imageURL: string;
+  onClick: (amount: number) => void;
+  isSelected: boolean;
+}
+
+export interface LoadingScreenProps {
+  logoUrl: string;
+  loadedAmount: number;
+  onLoaded: () => void;
+}
+
+export interface RouletteBetButtonProps {
+  label: string;
+  totalBet: number;
+  onClick: () => void;
+  isDisabled?: boolean;
+  className?: string;
+}
+
+export interface WheelProps {
+  winningNumber: number | null;
+  isSpinning: boolean;
+  onSpinEnd?: () => void;
+  winningAmount?: number;
+}
+
+export interface LeaveGameDialogProps {
+  onLeave: () => void;
+}
+
+export interface RouletteGameProps {
+  mode?: "single" | "tournament";
+  player?: Player;
+  musicController: {
+    toggleMusic: () => void;
+    isMusicPlaying: boolean;
+  };
+  soundController?: {
+    toggleMute: () => void;
+    isMuted: boolean;
+    playSound: (name: string) => void;
+  };
+}
+
+export interface BetHistoryItem {
+  key: string;
+  amount: number;
+}
+
+export interface WinningNumberHistoryItem {
+  number: number;
+  color: string;
+}
+
+export interface JoinRoomResponse {
+  roomId?: string;
+  error?: string;
+}
+
+export interface SpinResult {
+  number: number;
+  color: string;
+}
+
+export interface SpinResponse {
+  result?: SpinResult;
+  error?: string;
 }
