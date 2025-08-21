@@ -1,6 +1,3 @@
-// src/components/Wheel.tsx
-
-import type { WheelProps } from "@/lib/types";
 import { useEffect, useState } from "react";
 
 const wheelNumMap = [
@@ -28,11 +25,21 @@ const getBallRotation = () => {
   return EXTRA_TURNS;
 };
 
+type LocalWheelProps = {
+  winningNumber: number | null;
+  isSpinning: boolean;
+  winningAmount: number | null; // monto que devolvió el servidor (0 si perdió, >0 si ganó, null/undefined if no payout)
+  playerTotalBet?: number; // total apostado por el jugador — permite distinguir "no apostó"
+  onSpinEnd?: () => void; // callback cuando termina la animación/resultado
+};
+
 export const Wheel = ({
   winningNumber,
   isSpinning,
   winningAmount,
-}: WheelProps) => {
+  playerTotalBet = 0,
+  onSpinEnd,
+}: LocalWheelProps) => {
   const [finalRotation, setFinalRotation] = useState({
     wheel: 0,
     ball: Math.random() * 360,
@@ -42,6 +49,7 @@ export const Wheel = ({
   const [ballRadius, setBallRadius] = useState(BALL_RADIUS_START);
 
   useEffect(() => {
+    // Inicio spin (animación grande aleatoria)
     if (isSpinning) {
       setShowResult(false);
       setIsTransitioning(false);
@@ -52,6 +60,7 @@ export const Wheel = ({
       setFinalRotation({ wheel: randomRotWheel, ball: randomRotBall });
     }
 
+    // Cuando termina el spinning y llega winningNumber desde el backend
     if (!isSpinning && winningNumber !== null) {
       const finalWheel = getWheelRotation(winningNumber);
       const finalBall = getBallRotation();
@@ -59,7 +68,7 @@ export const Wheel = ({
       setIsTransitioning(true);
       setFinalRotation({ wheel: finalWheel, ball: finalBall });
 
-      // Transición progresiva de radio
+      // Transición progresiva de radio (la bola encoge hacia el pocket)
       setTimeout(() => {
         setBallRadius(BALL_RADIUS_END);
       }, 500); // empieza a encogerse luego de 0.5s
@@ -67,9 +76,16 @@ export const Wheel = ({
   }, [isSpinning, winningNumber]);
 
   const handleTransitionEnd = () => {
+    // Ejecuta una sola vez por transición completa
     if (isTransitioning) {
       setShowResult(true);
       setIsTransitioning(false);
+
+      // delegamos notificación al padre (si quiere sincronizar audio/estado extra)
+      if (typeof onSpinEnd === "function") {
+        // pequeño retardo para asegurar que las animaciones "resultado" se hayan aplicado
+        setTimeout(() => onSpinEnd(), 50);
+      }
     }
   };
 
@@ -93,7 +109,7 @@ export const Wheel = ({
               animationDelay: `${Math.random() * 2}s`,
               animationDuration: `${2 + Math.random()}s`,
             }}
-          ></div>
+          />
         ))}
         <div className="absolute inset-0 flex items-center justify-center text-5xl font-extrabold text-white animate-fade-in-out">
           ¡HAS GANADO!
@@ -101,6 +117,16 @@ export const Wheel = ({
       </div>
     );
   };
+
+  // Determina el estado a mostrar basado exclusivamente en las props (las cuales vienen del back + parenTotalBet)
+  const didPlayerBet = (playerTotalBet ?? 0) > 0;
+  const serverWonAmount =
+    typeof winningAmount === "number" ? winningAmount : null;
+  const showWin =
+    didPlayerBet && serverWonAmount !== null && serverWonAmount > 0;
+  const showLose =
+    didPlayerBet && serverWonAmount !== null && serverWonAmount === 0;
+  const showNoBet = !didPlayerBet;
 
   return (
     <div className="relative w-96 h-96 flex items-center justify-center">
@@ -146,7 +172,7 @@ export const Wheel = ({
           style={{
             transform: `translateY(-${ballRadius}px)`,
           }}
-        ></div>
+        />
       </div>
 
       {/* Resultado */}
@@ -164,28 +190,40 @@ export const Wheel = ({
           </div>
 
           <div className="absolute bottom-20 flex items-center justify-center z-30 w-full">
-            {winningAmount && winningAmount > 0 ? (
+            {showWin ? (
               <div className="bg-gradient-to-r from-black/60 via-green-500 to-black/60 opacity-100 text-white px-6 py-3 animate-pulse">
                 <div className="text-center">
                   <div className="text-xl font-bold">¡HAS GANADO!</div>
                   <div className="text-lg">
-                    $ {winningAmount.toLocaleString()}
+                    $ {serverWonAmount!.toLocaleString()}
                   </div>
                 </div>
               </div>
-            ) : (
+            ) : showLose ? (
               <div className="bg-gradient-to-r from-black/60 via-red-500 to-black/60 opacity-100 text-white px-6 py-3">
                 <div className="text-center">
                   <div className="text-xl font-bold">Has Perdido</div>
                   <div className="text-lg">Mejor suerte la próxima vez</div>
                 </div>
               </div>
+            ) : showNoBet ? (
+              <div className="bg-black/60 text-white px-6 py-3 rounded-md">
+                <div className="text-center">
+                  <div className="text-xl font-bold">Sin Apuesta</div>
+                  <div className="text-lg">No participaste en esta ronda</div>
+                </div>
+              </div>
+            ) : (
+              // Fallback neutral
+              <div className="bg-black/60 text-white px-6 py-3 rounded-md">
+                <div className="text-center">Resultado</div>
+              </div>
             )}
           </div>
         </>
       )}
 
-      {showResult && winningAmount && winningAmount > 0 && <WinningsEffect />}
+      {showResult && showWin && <WinningsEffect />}
 
       {/* Animación de rebote */}
       <style>{`

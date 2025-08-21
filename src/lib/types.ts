@@ -194,6 +194,11 @@ export interface Player {
   score: number;
 }
 
+export interface RouletteGameProps {
+  mode: GameMode;
+  player?: Player;
+}
+
 export type GameMode = "single" | "tournament";
 
 export interface MenuProps {
@@ -255,28 +260,9 @@ export interface LeaveGameDialogProps {
   onLeave: () => void;
 }
 
-export interface RouletteGameProps {
-  mode?: "single" | "tournament";
-  player?: Player;
-  musicController: {
-    toggleMusic: () => void;
-    isMusicPlaying: boolean;
-  };
-  soundController?: {
-    toggleMute: () => void;
-    isMuted: boolean;
-    playSound: (name: string) => void;
-  };
-}
-
 export interface BetHistoryItem {
   key: string;
   amount: number;
-}
-
-export interface JoinRoomResponse {
-  roomId?: string;
-  error?: string;
 }
 
 export interface SpinResult {
@@ -311,4 +297,20 @@ export interface RouletteTableProps {
 
 export interface Bets {
   [key: string]: number;
+}
+
+export interface Bet {
+  betKey: string;
+  amount: number;
+}
+
+export interface JoinRoomResponse {
+  message: string;
+  roomId: string;
+  user?: {
+    id: string;
+    name: string;
+    balance: number;
+  };
+  error?: string;
 }

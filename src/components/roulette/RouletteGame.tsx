@@ -1,4 +1,4 @@
-// src/RouletteGame.tsx
+// src/components/roulette/RouletteGame.tsx
 
 import { useState } from "react";
 import { ChipButton } from "./ChipButton";
@@ -6,15 +6,14 @@ import { Button } from "./Button";
 import { Wheel } from "./Wheel";
 import { LeaveGameDialog } from "../LeaveGameDialog";
 import { useRouletteGame } from "@/hooks/useRouletteGame";
-import type { RouletteGameProps } from "@/lib/types";
 import { WinningHistory } from "./WinningHistory";
 import { RouletteTable } from "./RouletteTable";
 import { PaymentChart } from "./PaymentChart";
+import { useMusicController } from "@/hooks/useMusicController";
+import { useSoundController } from "@/hooks/useSoundController";
+import type { RouletteGameProps } from "@/lib/types";
 
-export const RouletteGame = ({
-  musicController,
-  soundController,
-}: RouletteGameProps) => {
+export const RouletteGame = ({ mode, player }: RouletteGameProps) => {
   const [showPaymentChart, setShowPaymentChart] = useState(false);
 
   const {
@@ -23,7 +22,7 @@ export const RouletteGame = ({
     totalBet,
     isSpinning,
     winningNumber,
-    bets,
+    betsDisplay,
     winningNumberHistory,
     pendingWinnings,
     handlePlaceBet,
@@ -32,11 +31,13 @@ export const RouletteGame = ({
     handleRepeatBet,
     handleDoubleBet,
     handleLeaveAndNavigate,
-    sound,
     setSelectedChip,
     gameState,
     timer,
-  } = useRouletteGame({ soundController });
+  } = useRouletteGame({ mode, player });
+
+  const soundController = useSoundController();
+  const musicController = useMusicController();
 
   const getGameStateMessage = () => {
     switch (gameState) {
@@ -63,7 +64,7 @@ export const RouletteGame = ({
       {/* Overlay negro sutil */}
       <div className="absolute inset-0 bg-black opacity-60"></div>
 
-      {/* Header y chips (sin cambios) */}
+      {/* Header y controles */}
       <div className="header flex justify-between items-center w-full px-4 py-2 absolute top-0 z-10">
         <div className="flex flex-col justify-center items-center text-2xl text-center">
           <span>SALDO</span>
@@ -96,12 +97,14 @@ export const RouletteGame = ({
             isDisabled={gameState !== "betting"}
           />
         </div>
+
         <div>
           <span>APUESTA TOTAL</span>
           <span className="font-bold text-yellow-400 ml-2">${totalBet}</span>
         </div>
       </div>
 
+      {/* Chips */}
       <div className="flex gap-4 p-4 mt-20 z-10">
         {[50, 100, 200, 500, 1000].map((amount) => (
           <ChipButton
@@ -130,14 +133,13 @@ export const RouletteGame = ({
         {getGameStateMessage()}
       </div>
 
-      {/* Renderizado condicional de la ruleta */}
+      {/* Ruleta o mesa */}
       {isSpinning || winningNumber !== null ? (
         <div
           className="absolute inset-0 flex items-center justify-center z-50
                bg-black/60 backdrop-blur-sm
                motion-safe:animate-[overlay-fade-in_.35s_ease-out_forwards]"
         >
-          {/* Wrapper de entrada: NO toques Wheel; animamos el contenedor para no pisar su transform */}
           <div
             className="origin-center
                  [will-change:transform]
@@ -147,15 +149,28 @@ export const RouletteGame = ({
               isSpinning={isSpinning}
               winningNumber={winningNumber}
               winningAmount={pendingWinnings}
-              onSpinEnd={() => {}}
+              playerTotalBet={totalBet}
+              onSpinEnd={() => {
+                // Opcional: disparar sonido o analytics
+              }}
             />
           </div>
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center space-y-4">
-          <WinningHistory winningNumberHistory={winningNumberHistory} />
+          <WinningHistory
+            winningNumberHistory={winningNumberHistory.map((item) => ({
+              ...item,
+              color:
+                item.color === "red"
+                  ? "red"
+                  : item.color === "black"
+                  ? "black"
+                  : "green",
+            }))}
+          />
           <RouletteTable
-            bets={bets}
+            bets={betsDisplay}
             handlePlaceBet={handlePlaceBet}
             isDisabled={gameState !== "betting"}
           />
@@ -165,12 +180,10 @@ export const RouletteGame = ({
       {/* Controles de sonido/música */}
       <div className="absolute bottom-4 left-4 flex gap-2 z-10">
         <Button
-          label={sound.isMuted() ? "Sonido OFF" : "Sonido ON"}
-          onClick={() => {
-            sound.toggleMute();
-          }}
+          label={soundController.isMuted ? "Sonido OFF" : "Sonido ON"}
+          onClick={soundController.toggleMute}
           imageURL={
-            sound.isMuted()
+            soundController.isMuted
               ? "/res/ButtonSoundOFF.svg"
               : "/res/ButtonSoundON.svg"
           }
@@ -186,7 +199,7 @@ export const RouletteGame = ({
         />
       </div>
 
-      {/* Info + Salir */}
+      {/* Info + salir */}
       <div className="absolute bottom-4 right-4 flex gap-2 z-10">
         <Button
           label="Info"

@@ -1,38 +1,21 @@
 // src/App.tsx
-
 import { useState, useEffect, useRef } from "react";
 import { Routes, Route, useNavigate } from "react-router-dom";
 import type { GameMode, Player } from "./lib/types";
 import { Menu } from "./components/roulette/RouletteMenu";
 import { RouletteGame } from "./components/roulette/RouletteGame";
-import { MusicPlayer } from "./classes/MusicPlayer";
-import { SoundPlayer } from "./classes/SoundPlayer";
 import { LoadingScreen } from "./components/roulette/LoadingScreen";
 import { TournamentComingSoon } from "./components/TournamentComingSoon";
 
-// Inicializa las clases de audio una sola vez fuera del componente
-const music = new MusicPlayer([
-  "./res/music/background-biscuit-bliss.mp3",
-  "./res/music/background-jazz.mp3",
-]);
-const sounds = new SoundPlayer();
-
 const App = () => {
   const [loading, setLoading] = useState(true);
-  const [currentPlayer, setCurrentPlayer] = useState<Player | undefined>(
-    undefined
-  );
+  const [currentPlayer, setCurrentPlayer] = useState<Player | undefined>();
   const [loadedAmount, setLoadedAmount] = useState(0);
   const navigate = useNavigate();
   const isFirstLoad = useRef(true);
 
-  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(sounds.getIsMuted());
-
   useEffect(() => {
-    if (!isFirstLoad.current) {
-      return;
-    }
+    if (!isFirstLoad.current) return;
     isFirstLoad.current = false;
 
     const loadResources = async () => {
@@ -41,32 +24,26 @@ const App = () => {
         "./res/ThumbnailSingle.webp",
         "./res/ThumbnailTournament.webp",
       ];
-      const imagePromises = imageUrls.map((url) => {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.src = url;
-          img.onload = resolve;
-          img.onerror = reject;
-        });
-      });
+
+      const imagePromises = imageUrls.map(
+        (url) =>
+          new Promise<void>((resolve, reject) => {
+            const img = new Image();
+            img.src = url;
+            img.onload = () => resolve();
+            img.onerror = () => reject();
+          })
+      );
 
       for (let i = 0; i < imageUrls.length; i++) {
         await imagePromises[i];
-        const progress = (i + 1) / imageUrls.length;
-        setLoadedAmount(progress);
+        setLoadedAmount((i + 1) / imageUrls.length);
       }
 
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       setLoading(false);
       navigate("/menu");
-
-      const handleFirstClick = () => {
-        music.playSong(0);
-        setIsMusicPlaying(true);
-        document.removeEventListener("click", handleFirstClick);
-      };
-      document.addEventListener("click", handleFirstClick);
     };
 
     loadResources();
@@ -78,20 +55,6 @@ const App = () => {
 
   const handleLogin = (player: Player) => {
     setCurrentPlayer(player);
-  };
-
-  const toggleMusic = () => {
-    if (isMusicPlaying) {
-      music.pause();
-    } else {
-      music.playSong(0);
-    }
-    setIsMusicPlaying(!isMusicPlaying);
-  };
-
-  const toggleMute = () => {
-    sounds.toggleMute();
-    setIsMuted(sounds.getIsMuted());
   };
 
   if (loading) {
@@ -115,18 +78,7 @@ const App = () => {
         />
         <Route
           path="/single"
-          element={
-            <RouletteGame
-              mode="single"
-              player={currentPlayer}
-              musicController={{ toggleMusic, isMusicPlaying }}
-              soundController={{
-                toggleMute,
-                isMuted,
-                playSound: sounds.playSound.bind(sounds),
-              }}
-            />
-          }
+          element={<RouletteGame mode="single" player={currentPlayer} />}
         />
         <Route path="/tournament" element={<TournamentComingSoon />} />
         <Route
