@@ -17,7 +17,7 @@ export const LeaveGameDialog = ({ onLeave }: LeaveGameDialogProps) => {
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button
-          label="Leave"
+          label="Salir"
           imageURL={"/res/ButtonExit.svg"}
           onClick={() => {}}
         />

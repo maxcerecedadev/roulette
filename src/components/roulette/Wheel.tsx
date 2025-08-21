@@ -125,9 +125,9 @@ export const Wheel = ({
           </div>
 
           {/* Mensaje de resultado */}
-          <div className="absolute -bottom-20 flex items-center justify-center z-30 w-full">
+          <div className="absolute bottom-20 flex items-center justify-center z-30 w-full">
             {winningAmount && winningAmount > 0 ? (
-              <div className="bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg border-2 border-green-400 animate-pulse">
+              <div className="bg-gradient-to-r from-black/60 via-green-500 to-black/60 opacity-100 text-white px-6 py-3  animate-pulse">
                 <div className="text-center">
                   <div className="text-xl font-bold">¡HAS GANADO!</div>
                   <div className="text-lg">
@@ -136,7 +136,7 @@ export const Wheel = ({
                 </div>
               </div>
             ) : (
-              <div className="bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg border-2 border-red-400">
+              <div className="bg-gradient-to-r from-black/60 via-red-500 to-black/60 opacity-100 text-white px-6 py-3">
                 <div className="text-center">
                   <div className="text-xl font-bold">Has Perdido</div>
                   <div className="text-lg">Mejor suerte la próxima vez</div>

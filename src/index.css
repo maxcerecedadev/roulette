@@ -42,32 +42,12 @@
 }
 
 @font-face {
-  font-family: "Futura Md BT";
-  src: url("./res/font/Futura Md BT Bold.ttf") format("truetype");
+  font-family: 'NataSans';
+  src: url('/res/font/NataSans-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400 700;
   font-style: normal;
-  font-weight: 700;
 }
 
-@font-face {
-  font-family: "Futura Md BT";
-  src: url("./res/font/Futura Md BT Bold Italic.ttf") format("truetype");
-  font-style: italic;
-  font-weight: 700;
-}
-
-@font-face {
-  font-family: "Futura Md BT";
-  src: url("./res/font/Futura Md BT Medium.ttf") format("truetype");
-  font-style: normal;
-  font-weight: 500;
-}
-
-@font-face {
-  font-family: "Futura Md BT";
-  src: url("./res/font/Futura Md BT Medium Italic.ttf") format("truetype");
-  font-style: italic;
-  font-weight: 500;
-}
 
 :root {
   --radius: 0.625rem;
@@ -142,7 +122,9 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+    font-family: 'NataSans', sans-serif;
   }
 }

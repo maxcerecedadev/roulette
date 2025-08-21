@@ -13,10 +13,10 @@ import type {
 
 const SOCKET_IO_URL = import.meta.env.VITE_SOCKET_IO_URL;
 
-const redNumbers = [
+export const redNumbers = [
   1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36,
 ];
-const blackNumbers = [
+export const blackNumbers = [
   2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35,
 ];
 
@@ -212,19 +212,6 @@ export const useRouletteGame = ({ soundController }: UseRouletteGameProps) => {
         const wonAmount = calculateWinnings(finalWinningNumber, bets);
         setWinningNumber(finalWinningNumber);
         setPendingWinnings(wonAmount);
-        setWinningNumberHistory((prev) =>
-          [
-            {
-              number: finalWinningNumber,
-              color: redNumbers.includes(finalWinningNumber)
-                ? "red"
-                : finalWinningNumber === 0
-                ? "green"
-                : "black",
-            },
-            ...prev,
-          ].slice(0, 10)
-        );
       }
     );
   };
@@ -318,6 +305,19 @@ export const useRouletteGame = ({ soundController }: UseRouletteGameProps) => {
 
   const handleSpinEnd = () => {
     setTimeout(() => {
+      if (winningNumber !== null) {
+        const newHistoryItem: WinningNumberHistoryItem = {
+          number: winningNumber,
+          color: redNumbers.includes(winningNumber)
+            ? "red"
+            : winningNumber === 0
+            ? "green"
+            : "black",
+        };
+        setWinningNumberHistory((prev) =>
+          [newHistoryItem, ...prev].slice(0, 10)
+        );
+      }
       setBalance((prev) => prev + pendingWinnings);
       setPendingWinnings(0);
       setTotalBet(0);

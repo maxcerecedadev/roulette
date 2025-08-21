@@ -273,11 +273,6 @@ export interface BetHistoryItem {
   amount: number;
 }
 
-export interface WinningNumberHistoryItem {
-  number: number;
-  color: string;
-}
-
 export interface JoinRoomResponse {
   roomId?: string;
   error?: string;
@@ -291,4 +286,27 @@ export interface SpinResult {
 export interface SpinResponse {
   result?: SpinResult;
   error?: string;
+}
+
+export interface HistoryItem {
+  number: number;
+  color: "green" | "red" | "black";
+}
+
+export interface WinningHistoryProps {
+  winningNumberHistory: HistoryItem[];
+}
+
+export interface WinningNumberHistoryItem {
+  number: number;
+  color: "green" | "red" | "black";
+}
+
+export interface RouletteTableProps {
+  bets: Bets;
+  handlePlaceBet: (bet: string) => void;
+}
+
+export interface Bets {
+  [key: string]: number;
 }

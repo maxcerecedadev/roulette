@@ -30,19 +30,18 @@ export const RouletteBetButton = ({
     <div
       onClick={!isDisabled ? onClick : undefined}
       className={`
-                relative
-                flex items-center justify-center
-                border border-gray-500 rounded-md
-                transition-colors duration-200
-                ${
-                  !isDisabled
-                    ? "cursor-pointer"
-                    : "cursor-not-allowed bg-gray-800 opacity-50"
-                }
-                ${className}
-            `}
+        relative
+        flex items-center justify-center
+        transition-colors duration-200
+        ${
+          !isDisabled
+            ? "cursor-pointer"
+            : "cursor-not-allowed bg-gray-800 opacity-50"
+        }
+        ${className}
+      `}
     >
-      <span className="absolute inset-0 z-10 flex items-center justify-center font-bold text-white">
+      <span className="absolute inset-0 z-10 flex items-center justify-center font-extrabold text-white text-xl">
         {label}
       </span>
 
