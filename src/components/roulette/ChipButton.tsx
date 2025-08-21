@@ -7,6 +7,7 @@ export const ChipButton = ({
   imageURL,
   onClick,
   isSelected,
+  isDisabled,
 }: ChipButtonProps) => {
   const SIZE_PX = 104;
 
@@ -27,6 +28,7 @@ export const ChipButton = ({
       onClick={() => onClick(amount)}
       className={chipClasses}
       style={{ width: `${SIZE_PX}px`, height: `${SIZE_PX}px` }}
+      disabled={isDisabled} // 👈 Usa la propiedad 'isDisabled' aquí
     >
       <img
         src={imageURL}

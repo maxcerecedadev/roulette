@@ -1,6 +1,30 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
+
+const adjectives = [
+  "Feliz",
+  "Valiente",
+  "Rápido",
+  "Curioso",
+  "Fresco",
+  "Mágico",
+  "Silencioso",
+];
+const nouns = ["Pato", "Gato", "Zorro", "Robot", "Ninja", "Árbol", "Estrella"];
+
+const getRandomElement = (arr: string[]): string =>
+  arr[Math.floor(Math.random() * arr.length)];
+
+export const generateRandomUser = () => {
+  const adjective = getRandomElement(adjectives);
+  const noun = getRandomElement(nouns);
+  const id = `test-${Date.now()}`;
+  return {
+    id: id,
+    name: `${adjective} ${noun}`,
+  };
+};

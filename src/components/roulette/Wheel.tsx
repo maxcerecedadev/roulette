@@ -1,3 +1,5 @@
+// src/components/Wheel.tsx
+
 import type { WheelProps } from "@/lib/types";
 import { useEffect, useState } from "react";
 
@@ -6,61 +8,68 @@ const wheelNumMap = [
   16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26,
 ];
 
-const BALL_RADIUS = 140;
+const BALL_RADIUS_START = 130; // radio inicial (más grande)
+const BALL_RADIUS_END = 102; // radio final correcto
+const STEP_ANGLE = 360 / wheelNumMap.length;
 
+// Posición de referencia (12 en punto)
+const topPositionIndex = 0;
+
+// --- Rueda ---
 const getWheelRotation = (num: number) => {
-  const position = wheelNumMap.indexOf(num);
-  const stepAngle = 360 / wheelNumMap.length;
-  return 2160 - stepAngle * position;
+  const numIndex = wheelNumMap.indexOf(num);
+  const angleToTarget = (numIndex - topPositionIndex) * STEP_ANGLE;
+  return 2160 - angleToTarget; // varias vueltas + ajuste al número
 };
 
-const getBallRotation = (num: number) => {
-  const baseRotation = -2160;
-  const finalPosition = 0;
-  const ballPosition = baseRotation + finalPosition;
-
-  console.log(
-    `Rotación bola para num=${num}: ${ballPosition} (posición final: ${finalPosition}°)`
-  );
-  return ballPosition;
+// --- Bola ---
+const getBallRotation = () => {
+  const EXTRA_TURNS = -2880; // vueltas extra en sentido contrario
+  return EXTRA_TURNS;
 };
 
 export const Wheel = ({
   winningNumber,
   isSpinning,
-  onSpinEnd,
   winningAmount,
 }: WheelProps) => {
-  const [finalRotation, setFinalRotation] = useState({ wheel: 0, ball: 0 });
+  const [finalRotation, setFinalRotation] = useState({
+    wheel: 0,
+    ball: Math.random() * 360,
+  });
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [showResult, setShowResult] = useState(false);
-  const [isAnimationActive, setIsAnimationActive] = useState(false);
+  const [ballRadius, setBallRadius] = useState(BALL_RADIUS_START);
 
   useEffect(() => {
     if (isSpinning) {
-      setIsAnimationActive(true);
       setShowResult(false);
+      setIsTransitioning(false);
+      setBallRadius(BALL_RADIUS_START);
 
-      if (winningNumber !== null) {
-        const finalWheel = getWheelRotation(winningNumber);
-        const finalBall = getBallRotation(winningNumber);
-        console.log("Rotación final rueda:", finalWheel);
-        console.log("Rotación final bola:", finalBall);
-        setFinalRotation({ wheel: finalWheel, ball: finalBall });
-      } else {
-        setFinalRotation({ wheel: 100000, ball: -100000 });
-      }
+      const randomRotWheel = 10000 + Math.random() * 500;
+      const randomRotBall = -10000 + Math.random() * 500;
+      setFinalRotation({ wheel: randomRotWheel, ball: randomRotBall });
+    }
+
+    if (!isSpinning && winningNumber !== null) {
+      const finalWheel = getWheelRotation(winningNumber);
+      const finalBall = getBallRotation();
+
+      setIsTransitioning(true);
+      setFinalRotation({ wheel: finalWheel, ball: finalBall });
+
+      // Transición progresiva de radio
+      setTimeout(() => {
+        setBallRadius(BALL_RADIUS_END);
+      }, 500); // empieza a encogerse luego de 0.5s
     }
   }, [isSpinning, winningNumber]);
 
-  const handleAnimationEnd = () => {
-    if (isSpinning && winningNumber !== null) {
-      setIsAnimationActive(false);
-      setTimeout(() => {
-        setShowResult(true);
-        if (onSpinEnd) {
-          onSpinEnd();
-        }
-      }, 1000);
+  const handleTransitionEnd = () => {
+    if (isTransitioning) {
+      setShowResult(true);
+      setIsTransitioning(false);
     }
   };
 
@@ -72,50 +81,80 @@ export const Wheel = ({
     return redNumbers.includes(num) ? "red" : "black";
   };
 
-  console.log("Render finalRotation:", finalRotation);
+  const WinningsEffect = () => {
+    return (
+      <div className="absolute inset-0 z-40 overflow-hidden pointer-events-none">
+        {Array.from({ length: 50 }).map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-4 h-8 bg-green-500 rounded opacity-0 animate-bill-fall"
+            style={{
+              left: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 2}s`,
+              animationDuration: `${2 + Math.random()}s`,
+            }}
+          ></div>
+        ))}
+        <div className="absolute inset-0 flex items-center justify-center text-5xl font-extrabold text-white animate-fade-in-out">
+          ¡HAS GANADO!
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="relative w-96 h-96 flex items-center justify-center">
+      {/* Fondo */}
       <img
         src="/res/WheelBack.webp"
         alt="Wheel Back"
         className="absolute inset-0 w-full h-full object-cover z-0"
       />
 
+      {/* Rueda */}
       <img
         src="/res/WheelFront.webp"
         alt="Roulette Wheel"
         className={`absolute w-4/5 h-4/5 z-10 ${
-          isAnimationActive
-            ? "transition-transform duration-[4s] cubic-bezier(0.1, 0.7, 0.1, 1)"
+          isTransitioning
+            ? `transition-transform duration-[4000ms] cubic-bezier(0.1, 0.7, 0.1, 1)`
+            : isSpinning
+            ? "transition-none"
             : ""
         }`}
         style={{ transform: `rotate(${finalRotation.wheel}deg)` }}
       />
 
+      {/* Bola */}
       <div
         className={`absolute w-full h-full flex items-center justify-center z-20 ${
-          isAnimationActive
-            ? "transition-transform duration-[4s] cubic-bezier(0.1, 0.7, 0.1, 1)"
+          isTransitioning
+            ? `transition-transform duration-[4000ms] cubic-bezier(0.1, 0.1, 0.25, 1)`
+            : isSpinning
+            ? "transition-none"
             : ""
         }`}
         style={{ transform: `rotate(${finalRotation.ball}deg)` }}
-        onTransitionEnd={handleAnimationEnd}
+        onTransitionEnd={handleTransitionEnd}
       >
         <div
-          className="absolute w-6 h-6 rounded-full bg-gray-200 border border-black flex items-center justify-center text-xs font-bold"
+          className={`absolute w-4 h-4 rounded-full bg-gray-200 border border-black ${
+            isTransitioning
+              ? "transition-all duration-[3500ms] ease-in-out animate-ball-rebound"
+              : ""
+          }`}
           style={{
-            transform: `translateY(-${BALL_RADIUS}px)`,
+            transform: `translateY(-${ballRadius}px)`,
           }}
         ></div>
       </div>
 
+      {/* Resultado */}
       {showResult && winningNumber !== null && (
         <>
-          {/* Número ganador */}
           <div className="absolute -top-14 flex items-center justify-center z-30">
             <div
-              className="px-4 py-2 rounded-md text-2xl font-bold text-white border-2 border-white shadow-lg"
+              className="p-2 rounded-md text-2xl font-bold text-white border-2 border-white shadow-lg"
               style={{
                 backgroundColor: getNumberColor(winningNumber),
               }}
@@ -124,10 +163,9 @@ export const Wheel = ({
             </div>
           </div>
 
-          {/* Mensaje de resultado */}
           <div className="absolute bottom-20 flex items-center justify-center z-30 w-full">
             {winningAmount && winningAmount > 0 ? (
-              <div className="bg-gradient-to-r from-black/60 via-green-500 to-black/60 opacity-100 text-white px-6 py-3  animate-pulse">
+              <div className="bg-gradient-to-r from-black/60 via-green-500 to-black/60 opacity-100 text-white px-6 py-3 animate-pulse">
                 <div className="text-center">
                   <div className="text-xl font-bold">¡HAS GANADO!</div>
                   <div className="text-lg">
@@ -146,6 +184,22 @@ export const Wheel = ({
           </div>
         </>
       )}
+
+      {showResult && winningAmount && winningAmount > 0 && <WinningsEffect />}
+
+      {/* Animación de rebote */}
+      <style>{`
+        @keyframes ball-rebound {
+          0%   { transform: translateY(-${BALL_RADIUS_END + 6}px); }
+          40%  { transform: translateY(-${BALL_RADIUS_END - 4}px); }
+          70%  { transform: translateY(-${BALL_RADIUS_END + 2}px); }
+          100% { transform: translateY(-${BALL_RADIUS_END}px); }
+        }
+        .animate-ball-rebound {
+          animation: ball-rebound 0.5s ease-out forwards;
+          animation-delay: 3.6s;
+        }
+      `}</style>
     </div>
   );
 };

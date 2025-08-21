@@ -1,64 +1,14 @@
 // src/hooks/useRouletteGame.ts
 
 import { useState, useRef, useEffect } from "react";
-import { io, Socket } from "socket.io-client";
 import { useNavigate } from "react-router-dom";
+import { io, Socket } from "socket.io-client";
 import { SoundPlayer } from "@/classes/SoundPlayer";
-import type {
-  BetHistoryItem,
-  JoinRoomResponse,
-  SpinResponse,
-  WinningNumberHistoryItem,
-} from "@/lib/types";
+import type { JoinRoomResponse, WinningNumberHistoryItem } from "@/lib/types";
+import { generateRandomUser } from "@/lib/utils";
+import { calculateWinnings, getColor } from "@/lib/utils/gameLogic";
 
 const SOCKET_IO_URL = import.meta.env.VITE_SOCKET_IO_URL;
-
-export const redNumbers = [
-  1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36,
-];
-export const blackNumbers = [
-  2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35,
-];
-
-const groupBets: Record<string, number[]> = {
-  "1-18": Array.from({ length: 18 }, (_, i) => i + 1),
-  "19-36": Array.from({ length: 18 }, (_, i) => i + 19),
-  PAR: Array.from({ length: 18 }, (_, i) => (i + 1) * 2),
-  IMPAR: Array.from({ length: 18 }, (_, i) => i * 2 + 1),
-  ROJO: redNumbers,
-  NEGRO: blackNumbers,
-  "1ra 12": Array.from({ length: 12 }, (_, i) => i + 1),
-  "2da 12": Array.from({ length: 12 }, (_, i) => i + 13),
-  "3ra 12": Array.from({ length: 12 }, (_, i) => i + 25),
-  "2:1-1": Array.from({ length: 12 }, (_, i) => i * 3 + 1),
-  "2:1-2": Array.from({ length: 12 }, (_, i) => i * 3 + 2),
-  "2:1-3": Array.from({ length: 12 }, (_, i) => i * 3 + 3),
-};
-
-const calculateWinnings = (
-  winningNumber: number,
-  bets: Record<string, number>
-): number => {
-  let winnings = 0;
-  if (bets[winningNumber.toString()]) {
-    winnings += (bets[winningNumber.toString()] || 0) * 35;
-  }
-  for (const key in groupBets) {
-    if (groupBets[key].includes(winningNumber) && (bets[key] || 0) > 0) {
-      if (
-        key === "1ra 12" ||
-        key === "2da 12" ||
-        key === "3ra 12" ||
-        key.startsWith("2:1")
-      ) {
-        winnings += bets[key] * 2;
-      } else {
-        winnings += bets[key] * 1;
-      }
-    }
-  }
-  return winnings;
-};
 
 interface UseRouletteGameProps {
   soundController?: {
@@ -75,18 +25,22 @@ export const useRouletteGame = ({ soundController }: UseRouletteGameProps) => {
   const [isSpinning, setIsSpinning] = useState(false);
   const [winningNumber, setWinningNumber] = useState<number | null>(null);
   const [bets, setBets] = useState<Record<string, number>>({});
-  const [betHistory, setBetHistory] = useState<BetHistoryItem[][]>([]);
   const [winningNumberHistory, setWinningNumberHistory] = useState<
     WinningNumberHistoryItem[]
   >([]);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [pendingWinnings, setPendingWinnings] = useState(0);
+  const [isReady, setIsReady] = useState(false);
+  const [gameState, setGameState] = useState("idle");
+  const [timer, setTimer] = useState<number | null>(null);
 
-  const socketRef = useRef<Socket | null>(null);
   const navigate = useNavigate();
 
   const internalSoundRef = useRef<SoundPlayer | null>(null);
-  const [isMuted, setIsMuted] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastBetRef = useRef<Record<string, number>>({});
+  const [isMuted, setIsMuted] = useState(false); // Mantener el estado local para el sonido
 
   useEffect(() => {
     internalSoundRef.current = new SoundPlayer();
@@ -100,230 +54,253 @@ export const useRouletteGame = ({ soundController }: UseRouletteGameProps) => {
       });
 
     if (import.meta.env.DEV && !SOCKET_IO_URL) {
-      throw new Error("VITE_SOCKET_IO_URL is not defined in the .env file.");
+      console.error("VITE_SOCKET_IO_URL no está definido.");
+      return;
     }
 
-    if (!socketRef.current) {
-      socketRef.current = io(SOCKET_IO_URL);
-      socketRef.current.on("connect", () => {
-        console.log("✅ Conectado al servidor.");
-        socketRef.current?.emit("single-join", (response: JoinRoomResponse) => {
+    const socket = io(SOCKET_IO_URL);
+    socketRef.current = socket;
+
+    const onConnect = () => {
+      console.log("✅ Conectado al servidor.");
+      const user = generateRandomUser();
+      console.log(`🎉 Uniendo como: ${user.name} (${user.id})`);
+
+      socket.emit(
+        "single-join",
+        { userId: user.id, userName: user.name },
+        (response: JoinRoomResponse) => {
           if (response?.roomId) {
             setRoomId(response.roomId);
             console.log(`🎉 ¡Unido a la sala! ID de sala: ${response.roomId}`);
+            setIsReady(true);
           } else {
             console.error("❌ Error al unirse a la sala:", response?.error);
           }
-        });
-      });
+        }
+      );
+    };
 
-      socketRef.current.on("connect_error", (err) => {
-        console.error("❌ Error de conexión de Socket.IO:", err.message);
-      });
+    const onGameStateUpdate = (data: {
+      state: string;
+      time?: number;
+      winningNumber?: number;
+    }) => {
+      console.log(`🎮 Estado del juego: ${data.state}, Tiempo: ${data.time}`);
+      setGameState(data.state);
+      setIsSpinning(data.state === "spinning");
 
-      socketRef.current.on("disconnect", (reason) => {
-        console.log("🔴 Socket desconectado:", reason);
-      });
-    }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+
+      if (data.state === "betting") {
+        setWinningNumber(null);
+        setPendingWinnings(0);
+        setTimer(data.time ?? null);
+        sound.playSound("betting-start");
+
+        let remainingTime = data.time ?? 0;
+        timerRef.current = setInterval(() => {
+          remainingTime--;
+          setTimer(remainingTime);
+          if (remainingTime <= 0) {
+            clearInterval(timerRef.current!);
+          }
+        }, 1000);
+      }
+
+      if (data.state === "spinning") {
+        sound.playSound("spin");
+      }
+
+      if (data.state === "payout") {
+        const finalWinningNumber = data.winningNumber ?? null;
+        if (finalWinningNumber !== null) {
+          setWinningNumber(finalWinningNumber);
+          const wonAmount = calculateWinnings(finalWinningNumber, bets);
+          setPendingWinnings(wonAmount);
+
+          const newHistoryItem: WinningNumberHistoryItem = {
+            number: finalWinningNumber,
+            color: getColor(finalWinningNumber),
+          };
+          setWinningNumberHistory((prev) =>
+            [newHistoryItem, ...prev].slice(0, 10)
+          );
+          setBalance((prev) => prev + wonAmount);
+          // Actualiza lastBetRef con las apuestas actuales antes de limpiarlas
+          lastBetRef.current = { ...bets };
+          // Las apuestas se limpian después del cálculo de ganancias
+          setBets({});
+          setTotalBet(0);
+          sound.playSound("win");
+        }
+        console.log("💰 Pagos realizados y apuestas limpiadas.");
+      }
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("connect_error", (err) => {
+      console.error("❌ Error de conexión de Socket.IO:", err.message);
+    });
+    socket.on("game-state-update", onGameStateUpdate);
 
     return () => {
       if (socketRef.current) {
-        socketRef.current.removeAllListeners();
+        socketRef.current.off("connect", onConnect);
+        socketRef.current.off("game-state-update", onGameStateUpdate);
         socketRef.current.disconnect();
         socketRef.current = null;
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
       }
     };
   }, []);
 
   const sound = {
+    // Si se pasa un soundController, usarlo. De lo contrario, usar el interno.
     playSound: (name: string) => {
       if (soundController?.playSound) {
-        try {
-          soundController.playSound(name);
-        } catch (e) {
-          console.warn(
-            "Error calling soundController.playSound, using internal player:",
-            e
-          );
-          internalSoundRef.current?.playSound(name);
-        }
+        soundController.playSound(name);
       } else {
         internalSoundRef.current?.playSound(name);
       }
     },
     toggleMute: () => {
       if (soundController?.toggleMute) {
-        try {
-          soundController.toggleMute();
-        } catch (e) {
-          console.warn(
-            "Error calling soundController.toggleMute, using internal player:",
-            e
-          );
-          internalSoundRef.current?.toggleMute();
-          setIsMuted(internalSoundRef.current?.getIsMuted() ?? false);
-        }
+        soundController.toggleMute();
       } else {
         internalSoundRef.current?.toggleMute();
         setIsMuted(internalSoundRef.current?.getIsMuted() ?? false);
       }
     },
     isMuted: () => {
-      if (typeof soundController?.isMuted === "boolean") {
+      if (soundController?.isMuted) {
         return soundController.isMuted;
       }
-      return internalSoundRef.current?.getIsMuted() ?? isMuted;
+      return isMuted;
     },
   };
 
   const handlePlaceBet = (betKey: string) => {
-    if (isSpinning || balance < selectedChip) return;
-    const newBets = { ...bets, [betKey]: (bets[betKey] || 0) + selectedChip };
-    setBets(newBets);
-    setBalance((prev) => prev - selectedChip);
-    setTotalBet((prev) => prev + selectedChip);
-    setBetHistory((prev) => [
-      ...prev,
-      Object.keys(newBets).map((key) => ({ key, amount: newBets[key] })),
-    ]);
-    sound.playSound("chip");
-  };
+    if (!isReady || gameState !== "betting" || balance < selectedChip) return;
 
-  const handleSpin = () => {
-    if (totalBet <= 0 || isSpinning || !roomId) {
+    const socket = socketRef.current;
+    if (!socket || !roomId) {
       console.error(
-        "No se puede girar. No hay apuesta, la ruleta ya está girando o no se ha unido a una sala."
+        "No se puede apostar. Socket o RoomId no están disponibles."
       );
       return;
     }
-    setIsSpinning(true);
-    setWinningNumber(null);
-    setPendingWinnings(0);
-    sound.playSound("spin");
-    socketRef.current?.emit(
-      "single-spin",
-      { roomId },
-      (response: SpinResponse) => {
-        if (response.error) {
-          setIsSpinning(false);
-          return;
-        }
-        const finalWinningNumber = response.result?.number as number;
-        const wonAmount = calculateWinnings(finalWinningNumber, bets);
-        setWinningNumber(finalWinningNumber);
-        setPendingWinnings(wonAmount);
-      }
-    );
+
+    socket.emit("place-bet", { betKey, amount: selectedChip, roomId });
+
+    setBets((prev) => {
+      const newBets = { ...prev };
+      newBets[betKey] = (newBets[betKey] || 0) + selectedChip;
+      return newBets;
+    });
+    setBalance((prev) => prev - selectedChip);
+    setTotalBet((prev) => prev + selectedChip);
+    sound.playSound("chip");
   };
 
   const handleClearBets = () => {
+    if (!isReady) return;
     setBalance((prev) => prev + totalBet);
     setBets({});
     setTotalBet(0);
-    setBetHistory([]);
     sound.playSound("button");
   };
 
   const handleUndoBet = () => {
-    if (betHistory.length > 1) {
-      const previousBets = betHistory[betHistory.length - 2].reduce(
-        (acc, item) => {
-          acc[item.key] = item.amount;
-          return acc;
-        },
-        {} as Record<string, number>
-      );
-      const prevTotal = Object.values(previousBets).reduce((a, b) => a + b, 0);
-      const lastBetAmount = totalBet - prevTotal;
-      setBalance((prev) => prev + lastBetAmount);
-      setBets(previousBets);
-      setTotalBet(prevTotal);
-      setBetHistory((prev) => prev.slice(0, -1));
-      sound.playSound("button");
+    if (!isReady || gameState !== "betting" || totalBet === 0) return;
+
+    // Convertir el objeto de apuestas a un array de tuplas [key, value] para mantener el orden
+    const betsArray = Object.entries(bets);
+    if (betsArray.length === 0) return;
+
+    // Obtener la última apuesta
+    const [lastBetKey, lastBetAmount] = betsArray[betsArray.length - 1] as [
+      string,
+      number
+    ];
+
+    // Restar la cantidad de la última apuesta
+    const newBets = { ...bets };
+    newBets[lastBetKey] -= lastBetAmount;
+    if (newBets[lastBetKey] <= 0) {
+      delete newBets[lastBetKey];
     }
+
+    setBets(newBets);
+    setBalance((prev) => prev + lastBetAmount);
+    setTotalBet((prev) => prev - lastBetAmount);
+    sound.playSound("button");
   };
 
   const handleRepeatBet = () => {
-    if (betHistory.length > 0) {
-      const lastBets = betHistory[betHistory.length - 1];
-      const newTotalBet = lastBets.reduce((acc, item) => acc + item.amount, 0);
-      if (balance < newTotalBet) return;
-      const restored = lastBets.reduce((acc, item) => {
-        acc[item.key] = item.amount;
-        return acc;
-      }, {} as Record<string, number>);
-      setBets(restored);
-      setTotalBet(newTotalBet);
-      setBalance((prev) => prev - newTotalBet);
-      setBetHistory((prev) => [...prev, lastBets]);
-      sound.playSound("button");
+    if (
+      !isReady ||
+      gameState !== "betting" ||
+      Object.keys(lastBetRef.current).length === 0
+    )
+      return;
+
+    const lastBets = lastBetRef.current;
+    let newTotalBet = 0;
+
+    for (const betType in lastBets) {
+      newTotalBet += lastBets[betType];
     }
+
+    if (newTotalBet > balance) {
+      console.log("❌ Saldo insuficiente para repetir la apuesta.");
+      return;
+    }
+
+    setBalance((prev) => prev - newTotalBet);
+    setTotalBet(newTotalBet);
+    setBets(lastBets);
+    sound.playSound("button");
   };
 
   const handleDoubleBet = () => {
+    if (!isReady || gameState !== "betting" || totalBet === 0) return;
+
+    const newTotalBet = totalBet * 2;
+    if (newTotalBet > balance) {
+      console.log("❌ Saldo insuficiente para doblar la apuesta.");
+      return;
+    }
+
     const doubledBets = Object.keys(bets).reduce((acc, key) => {
       acc[key] = (bets[key] || 0) * 2;
       return acc;
     }, {} as Record<string, number>);
-    const doubledTotal = Object.values(doubledBets).reduce((a, b) => a + b, 0);
-    const extraNeeded = doubledTotal - totalBet;
-    if (balance < extraNeeded) return;
+
+    setBalance((prev) => prev - totalBet);
+    setTotalBet(newTotalBet);
     setBets(doubledBets);
-    setBalance((prev) => prev - extraNeeded);
-    setTotalBet(doubledTotal);
-    setBetHistory((prev) => [
-      ...prev,
-      Object.keys(doubledBets).map((key) => ({
-        key,
-        amount: doubledBets[key],
-      })),
-    ]);
     sound.playSound("button");
   };
 
   const handleLeaveAndNavigate = () => {
-    if (!socketRef.current) {
+    const socket = socketRef.current;
+    if (!socket) {
       navigate("/");
       return;
     }
     if (roomId) {
       try {
-        socketRef.current?.emit("leave-room", { roomId: roomId });
+        socket.emit("leave-room", { roomId: roomId });
       } catch (err) {
         console.error(err);
       }
     }
-    try {
-      socketRef.current.removeAllListeners();
-      socketRef.current.disconnect();
-    } catch (err) {
-      console.error(err);
-    }
-    socketRef.current = null;
     navigate("/");
-  };
-
-  const handleSpinEnd = () => {
-    setTimeout(() => {
-      if (winningNumber !== null) {
-        const newHistoryItem: WinningNumberHistoryItem = {
-          number: winningNumber,
-          color: redNumbers.includes(winningNumber)
-            ? "red"
-            : winningNumber === 0
-            ? "green"
-            : "black",
-        };
-        setWinningNumberHistory((prev) =>
-          [newHistoryItem, ...prev].slice(0, 10)
-        );
-      }
-      setBalance((prev) => prev + pendingWinnings);
-      setPendingWinnings(0);
-      setTotalBet(0);
-      setBets({});
-      setIsSpinning(false);
-    }, 2000);
   };
 
   return {
@@ -338,14 +315,15 @@ export const useRouletteGame = ({ soundController }: UseRouletteGameProps) => {
     winningNumberHistory,
     pendingWinnings,
     roomId,
+    isReady,
+    gameState,
+    timer,
     handlePlaceBet,
-    handleSpin,
     handleClearBets,
     handleUndoBet,
     handleRepeatBet,
     handleDoubleBet,
     handleLeaveAndNavigate,
-    handleSpinEnd,
     sound,
   };
 };

@@ -227,6 +227,7 @@ export interface ChipButtonProps {
   imageURL: string;
   onClick: (amount: number) => void;
   isSelected: boolean;
+  isDisabled: boolean;
 }
 
 export interface LoadingScreenProps {
@@ -305,6 +306,7 @@ export interface WinningNumberHistoryItem {
 export interface RouletteTableProps {
   bets: Bets;
   handlePlaceBet: (bet: string) => void;
+  isDisabled: boolean;
 }
 
 export interface Bets {

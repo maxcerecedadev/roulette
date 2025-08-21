@@ -2,7 +2,7 @@
 
 import type { RouletteTableProps } from "@/lib/types";
 import { RouletteBetButton } from "./RouletteBetButton";
-import { redNumbers } from "@/hooks/useRouletteGame";
+import { redNumbers } from "@/lib/constants/rouletteConstants";
 
 export const RouletteTable = ({ bets, handlePlaceBet }: RouletteTableProps) => {
   const baseClasses =

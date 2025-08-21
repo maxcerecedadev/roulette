@@ -27,16 +27,29 @@ export const RouletteGame = ({
     winningNumberHistory,
     pendingWinnings,
     handlePlaceBet,
-    handleSpin,
     handleClearBets,
     handleUndoBet,
     handleRepeatBet,
     handleDoubleBet,
     handleLeaveAndNavigate,
-    handleSpinEnd,
     sound,
     setSelectedChip,
+    gameState,
+    timer,
   } = useRouletteGame({ soundController });
+
+  const getGameStateMessage = () => {
+    switch (gameState) {
+      case "betting":
+        return `Tiempo de Apuestas: ${timer}s`;
+      case "spinning":
+        return "¡NO MÁS APUESTAS!";
+      case "payout":
+        return `Pagando...`;
+      default:
+        return "Conectando...";
+    }
+  };
 
   return (
     <div
@@ -50,38 +63,37 @@ export const RouletteGame = ({
       {/* Overlay negro sutil */}
       <div className="absolute inset-0 bg-black opacity-60"></div>
 
-      {/* Header */}
+      {/* Header y chips (sin cambios) */}
       <div className="header flex justify-between items-center w-full px-4 py-2 absolute top-0 z-10">
         <div className="flex flex-col justify-center items-center text-2xl text-center">
           <span>SALDO</span>
           <span className="font-bold ml-2">${balance}</span>
         </div>
+
         <div className="flex gap-2">
           <Button
             label="BORRAR"
             onClick={handleClearBets}
             imageURL={"/res/ButtonClear.svg"}
+            isDisabled={gameState !== "betting"}
           />
           <Button
             label="DESHACER"
             onClick={handleUndoBet}
             imageURL={"/res/ButtonUndo.svg"}
+            isDisabled={gameState !== "betting"}
           />
           <Button
             label="REPETIR"
             onClick={handleRepeatBet}
             imageURL={"/res/ButtonRepeat.svg"}
+            isDisabled={gameState !== "betting"}
           />
           <Button
             label="DOBLAR"
             onClick={handleDoubleBet}
             imageURL={"/res/ButtonDouble.svg"}
-          />
-          <Button
-            label="TIRAR"
-            onClick={handleSpin}
-            imageURL={"/res/ButtonSpin.svg"}
-            isDisabled={isSpinning || totalBet === 0}
+            isDisabled={gameState !== "betting"}
           />
         </div>
         <div>
@@ -90,7 +102,6 @@ export const RouletteGame = ({
         </div>
       </div>
 
-      {/* Chips */}
       <div className="flex gap-4 p-4 mt-20 z-10">
         {[50, 100, 200, 500, 1000].map((amount) => (
           <ChipButton
@@ -109,16 +120,47 @@ export const RouletteGame = ({
             }.svg`}
             onClick={() => setSelectedChip(amount)}
             isSelected={selectedChip === amount}
+            isDisabled={gameState !== "betting"}
           />
         ))}
       </div>
 
-      {/* Historial de números */}
-      {!isSpinning && winningNumberHistory.length > 0 && (
-        <WinningHistory winningNumberHistory={winningNumberHistory} />
+      {/* Mensaje de estado */}
+      <div className="absolute top-24 z-10 text-4xl font-extrabold text-white text-shadow-lg">
+        {getGameStateMessage()}
+      </div>
+
+      {/* Renderizado condicional de la ruleta */}
+      {isSpinning || winningNumber !== null ? (
+        <div
+          className="absolute inset-0 flex items-center justify-center z-50
+               bg-black/60 backdrop-blur-sm
+               motion-safe:animate-[overlay-fade-in_.35s_ease-out_forwards]"
+        >
+          {/* Wrapper de entrada: NO toques Wheel; animamos el contenedor para no pisar su transform */}
+          <div
+            className="origin-center
+                 [will-change:transform]
+                 motion-safe:animate-[wheel-enter_.85s_cubic-bezier(0.22,1,0.36,1)_both]"
+          >
+            <Wheel
+              isSpinning={isSpinning}
+              winningNumber={winningNumber}
+              winningAmount={pendingWinnings}
+              onSpinEnd={() => {}}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center space-y-4">
+          <WinningHistory winningNumberHistory={winningNumberHistory} />
+          <RouletteTable
+            bets={bets}
+            handlePlaceBet={handlePlaceBet}
+            isDisabled={gameState !== "betting"}
+          />
+        </div>
       )}
-      {/* Mesa de ruleta */}
-      <RouletteTable bets={bets} handlePlaceBet={handlePlaceBet} />
 
       {/* Controles de sonido/música */}
       <div className="absolute bottom-4 left-4 flex gap-2 z-10">
@@ -153,18 +195,6 @@ export const RouletteGame = ({
         />
         <LeaveGameDialog onLeave={handleLeaveAndNavigate} />
       </div>
-
-      {/* Modal de la ruleta (animación) */}
-      {isSpinning && (
-        <div className="absolute inset-0 flex bg-black/60 items-center justify-center z-50 backdrop-blur-sm">
-          <Wheel
-            isSpinning={isSpinning}
-            winningNumber={winningNumber}
-            winningAmount={pendingWinnings}
-            onSpinEnd={handleSpinEnd}
-          />
-        </div>
-      )}
 
       {/* Cartilla de pagos */}
       {showPaymentChart && (

@@ -128,3 +128,30 @@
     font-family: 'NataSans', sans-serif;
   }
 }
+
+@keyframes wheel-enter {
+  0% {
+    transform: scale(0.8) rotate(-180deg);
+    opacity: 0;
+  }
+
+  60% {
+    transform: scale(1.06) rotate(10deg);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
