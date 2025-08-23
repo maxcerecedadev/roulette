@@ -191,7 +191,7 @@ export interface SingleJoinResponse {
 export interface Player {
   id?: string;
   name: string;
-  score: number;
+  balance: number;
 }
 
 export interface RouletteGameProps {

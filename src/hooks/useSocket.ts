@@ -13,10 +13,11 @@ export interface BetResultItem {
 }
 
 export interface GameStateUpdate {
+  winningColor: string;
   state: string;
   time?: number;
-  winningNumber?: number;
-  totalWinnings?: number;
+  winningNumber: number;
+  totalWinnings: number;
   newBalance?: number;
   betResults?: BetResultItem[];
 }

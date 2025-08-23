@@ -30,8 +30,9 @@ export function useRouletteGame({
 
   const navigate = useNavigate();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-
+  const spinningRef = useRef<boolean>(false);
   const sound = useSoundController();
+  const prevGameState = useRef<string>("idle"); // Nuevo: referencia para el estado anterior
 
   const {
     bets,
@@ -48,69 +49,117 @@ export function useRouletteGame({
   } = useBets({});
 
   const onGameStateUpdate = (data: GameStateUpdate) => {
-    setGameState(data.state);
-    setIsSpinning(data.state === "spinning");
+    console.log(
+      `🕹️ [onGameStateUpdate] Estado recibido: ${data.state} | Estado anterior: ${prevGameState.current} | Número ganador: ${data.winningNumber} | Ganancias totales: ${data.totalWinnings}`
+    );
 
     if (timerRef.current) {
+      console.log("⏳ [onGameStateUpdate] Limpiando temporizador anterior.");
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
 
-    if (data.state === "betting") {
-      setWinningNumber(null);
-      setPendingWinnings(0);
-      setTimer(data.time ?? null);
-      sound.playSound("clock");
+    setGameState(data.state); // --- Fase de Apuestas ---
 
-      let remaining = data.time ?? 0;
+    if (data.state === "betting") {
+      // Limpia solo al inicio de la fase de apuestas, no en cada tick
+      if (prevGameState.current !== "betting") {
+        console.log("💰 [Fase Apuestas] Reiniciando la partida.");
+        setIsSpinning(false);
+        spinningRef.current = false;
+        setWinningNumber(null);
+        setPendingWinnings(0);
+        setTotalBet(0);
+        betsRef.current = {};
+        setBetsDisplayAndRef({});
+        betsDisplayRef.current = {};
+      }
+
+      const remaining = data.time ?? 0;
+      setTimer(remaining);
+      console.log(
+        `⏳ [Fase Apuestas] Temporizador de apuestas iniciado: ${remaining}s`
+      );
+
+      let countdown = remaining;
       timerRef.current = setInterval(() => {
-        remaining--;
-        setTimer(remaining);
-        if (remaining <= 0 && timerRef.current) {
+        countdown--;
+        setTimer(countdown);
+        if (countdown <= 0 && timerRef.current) {
           clearInterval(timerRef.current);
           timerRef.current = null;
         }
       }, 1000);
-    }
+
+      sound.playSound("clock");
+    } // --- Fase de Giro ---
 
     if (data.state === "spinning") {
-      sound.playSound("spin");
-    }
+      console.log("🌀 [Fase Giro] El servidor ha iniciado el giro.");
+      if (data.winningNumber != null) {
+        setWinningNumber(data.winningNumber);
+        console.log(
+          `🎉 [Fase Giro] Número ganador recibido: ${data.winningNumber}`
+        );
+      }
+      if (!spinningRef.current) {
+        setIsSpinning(true);
+        spinningRef.current = true;
+        sound.playSound("spin");
+        console.log("🎶 [Fase Giro] Reproduciendo sonido de giro.");
+      }
+    } // --- Fase de Pago ---
 
     if (data.state === "payout") {
-      const finalWinning = data.winningNumber ?? null;
-      if (finalWinning !== null) {
-        setWinningNumber(finalWinning);
+      console.log("💸 [Fase Pago] Estado de pago recibido.");
+      setIsSpinning(true);
 
-        const serverTotalWinnings =
+      if (data.winningNumber != null) {
+        const totalWin =
           typeof data.totalWinnings === "number" ? data.totalWinnings : 0;
-        const serverNewBalance =
+        const newBalance =
           typeof data.newBalance === "number" ? data.newBalance : balance;
-
-        setPendingWinnings(serverTotalWinnings);
-        setBalance(serverNewBalance);
-
-        setWinningNumberHistory((prev) =>
-          [
-            { number: finalWinning, color: getColor(finalWinning) },
-            ...prev,
-          ].slice(0, 10)
+        console.log(
+          `💰 [Fase Pago] Actualizando balance. Ganancias: ${totalWin} | Nuevo Balance: ${newBalance}`
         );
+        setPendingWinnings(totalWin);
+        setBalance(newBalance);
 
+        setWinningNumberHistory((prev) => {
+          const newHistory = [
+            {
+              number: data.winningNumber,
+              color: data.winningColor ?? getColor(data.winningNumber),
+            },
+            ...prev,
+          ].slice(0, 10);
+          console.log(
+            "📜 [Historial] Historial de números ganadores actualizado."
+          );
+          return newHistory;
+        });
         const didPlayerBet = Object.keys(betsDisplayRef.current).length > 0;
-        if (didPlayerBet) lastBetRef.current = { ...betsDisplayRef.current };
+        if (didPlayerBet) {
+          console.log(
+            "✨ [Apuestas] Guardando la última apuesta para la siguiente ronda."
+          );
+          lastBetRef.current = { ...betsDisplayRef.current };
+        }
 
-        betsRef.current = {};
-        setBetsDisplayAndRef({});
-        betsDisplayRef.current = {};
+        console.log("🧹 [Apuestas] Limpiando apuestas de la ronda actual.");
 
-        if (serverTotalWinnings > 0) {
+        if (totalWin > 0) {
+          console.log(
+            "🎶 [Sonido] ¡Ganaste! Reproduciendo sonido de victoria."
+          );
           sound.playSound("win");
         } else if (didPlayerBet) {
+          console.log("🎶 [Sonido] Perdiste. Reproduciendo sonido de derrota.");
           sound.playSound("lose");
         }
       }
     }
+    prevGameState.current = data.state; // Actualizar el estado anterior al final de la función
   };
 
   const { socketRef } = useSocket({ onGameStateUpdate });
@@ -119,66 +168,110 @@ export function useRouletteGame({
     const socket = socketRef.current;
     if (!socket) return;
 
+    const user = player ?? generateRandomUser();
+
     const onConnect = () => {
-      const user = player ?? generateRandomUser();
+      console.log(
+        "🌐 [socket] Conectado. Uniendo a la sala con el usuario:",
+        user.name
+      );
       socket.emit(
         "single-join",
-        { userId: user.id, userName: user.name },
+        { userId: user.id, userName: user.name, balance: user.balance },
         (response: { roomId?: string; error?: string }) => {
           if (response?.roomId) {
             setRoomId(response.roomId);
             setIsReady(true);
-          } else {
-            console.error("join error:", response?.error);
+            console.log(`🚪 [socket] Unido a la sala: ${response.roomId}`);
+          } else if (response?.error) {
+            console.error(
+              `❌ [socket] Error al unirse a la sala: ${response.error}`
+            );
           }
         }
       );
     };
-
     socket.on("connect", onConnect);
+
+    socket.on(
+      "player-initialized",
+      (data: { balance: number; playerId: string }) => {
+        console.log(
+          `✅ [player-initialized] Jugador inicializado. Balance: ${data.balance}`
+        );
+        setBalance(data.balance);
+      }
+    );
+
     return () => {
+      console.log("🔌 [socket] Desconectando listeners de socket.");
       socket.off("connect", onConnect);
-      if (timerRef.current) clearInterval(timerRef.current);
+      socket.off("player-initialized");
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
   }, [socketRef, player]);
 
   const handlePlaceBet = (displayKey: string) => {
-    if (!socketRef.current || !roomId || !isReady || gameState !== "betting")
+    if (!socketRef.current || !roomId || !isReady || gameState !== "betting") {
+      console.warn(
+        "🚫 [Apuesta] No se puede apostar en este momento. Estado actual:",
+        gameState
+      );
       return;
-    if (balance < selectedChip) return;
+    }
+    if (balance < selectedChip) {
+      console.warn("💸 [Apuesta] Saldo insuficiente para realizar la apuesta.");
+      return;
+    }
 
     placeBet(socketRef, displayKey, selectedChip, roomId);
     setBalance((b) => b - selectedChip);
     setTotalBet((t) => t + selectedChip);
     sound.playSound("chip");
+
+    console.log(
+      `🟢 [handlePlaceBet] Apostando ${selectedChip} en: ${displayKey} | Nuevo saldo: ${
+        balance - selectedChip
+      }`
+    );
   };
 
   const handleClearBets = () => {
     if (!socketRef.current || !roomId) return;
+    console.log("🧹 [Controles] Borrando todas las apuestas.");
     clearBets(socketRef, roomId);
     setTotalBet(0);
   };
 
   const handleUndoBet = () => {
     if (!socketRef.current || !roomId) return;
+    console.log("↩️ [Controles] Deshaciendo la última apuesta.");
     undoBet(socketRef, roomId);
   };
 
   const handleRepeatBet = () => {
     if (!socketRef.current || !roomId) return;
+    console.log("🔁 [Controles] Repitiendo la última apuesta.");
     repeatBet(socketRef, roomId);
   };
 
   const handleDoubleBet = () => {
     if (!socketRef.current || !roomId) return;
+    console.log("2️⃣ [Controles] Doblando la última apuesta.");
     doubleBet(socketRef, roomId);
   };
 
   const handleLeaveAndNavigate = () => {
     if (socketRef.current && roomId) {
+      console.log(`🚪 [Salir] Abandonando la sala ${roomId}.`);
       socketRef.current.emit("leave-room", { roomId });
       socketRef.current.disconnect();
     }
+    console.log(
+      "[handleLeaveAndNavigate] Navegando de vuelta a la pantalla de inicio."
+    );
     navigate("/");
   };
 

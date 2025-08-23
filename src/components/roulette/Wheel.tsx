@@ -1,36 +1,29 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 const wheelNumMap = [
   0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
   16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26,
 ];
 
-const BALL_RADIUS_START = 130; // radio inicial (más grande)
-const BALL_RADIUS_END = 102; // radio final correcto
+const BALL_RADIUS_START = 130;
+const BALL_RADIUS_END = 102;
 const STEP_ANGLE = 360 / wheelNumMap.length;
+const TOP_POSITION_INDEX = 0;
 
-// Posición de referencia (12 en punto)
-const topPositionIndex = 0;
-
-// --- Rueda ---
 const getWheelRotation = (num: number) => {
   const numIndex = wheelNumMap.indexOf(num);
-  const angleToTarget = (numIndex - topPositionIndex) * STEP_ANGLE;
-  return 2160 - angleToTarget; // varias vueltas + ajuste al número
+  const angleToTarget = (numIndex - TOP_POSITION_INDEX) * STEP_ANGLE;
+  return 2160 - angleToTarget;
 };
 
-// --- Bola ---
-const getBallRotation = () => {
-  const EXTRA_TURNS = -2880; // vueltas extra en sentido contrario
-  return EXTRA_TURNS;
-};
+const getBallRotation = () => -2880;
 
 type LocalWheelProps = {
   winningNumber: number | null;
   isSpinning: boolean;
-  winningAmount: number | null; // monto que devolvió el servidor (0 si perdió, >0 si ganó, null/undefined if no payout)
-  playerTotalBet?: number; // total apostado por el jugador — permite distinguir "no apostó"
-  onSpinEnd?: () => void; // callback cuando termina la animación/resultado
+  winningAmount: number | null;
+  playerTotalBet?: number;
+  onSpinEnd?: () => void;
 };
 
 export const Wheel = ({
@@ -47,10 +40,11 @@ export const Wheel = ({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [ballRadius, setBallRadius] = useState(BALL_RADIUS_START);
+  const prevIsSpinning = useRef(false);
 
+  // Inicia el giro
   useEffect(() => {
-    // Inicio spin (animación grande aleatoria)
-    if (isSpinning) {
+    if (isSpinning && !prevIsSpinning.current) {
       setShowResult(false);
       setIsTransitioning(false);
       setBallRadius(BALL_RADIUS_START);
@@ -59,31 +53,27 @@ export const Wheel = ({
       const randomRotBall = -10000 + Math.random() * 500;
       setFinalRotation({ wheel: randomRotWheel, ball: randomRotBall });
     }
+    prevIsSpinning.current = isSpinning;
+  }, [isSpinning]);
 
-    // Cuando termina el spinning y llega winningNumber desde el backend
-    if (!isSpinning && winningNumber !== null) {
+  // Transición al número ganador
+  useEffect(() => {
+    if (winningNumber !== null) {
       const finalWheel = getWheelRotation(winningNumber);
       const finalBall = getBallRotation();
 
       setIsTransitioning(true);
       setFinalRotation({ wheel: finalWheel, ball: finalBall });
-
-      // Transición progresiva de radio (la bola encoge hacia el pocket)
-      setTimeout(() => {
-        setBallRadius(BALL_RADIUS_END);
-      }, 500); // empieza a encogerse luego de 0.5s
+      setBallRadius(BALL_RADIUS_END);
     }
-  }, [isSpinning, winningNumber]);
+  }, [winningNumber]);
 
   const handleTransitionEnd = () => {
-    // Ejecuta una sola vez por transición completa
     if (isTransitioning) {
       setShowResult(true);
       setIsTransitioning(false);
 
-      // delegamos notificación al padre (si quiere sincronizar audio/estado extra)
       if (typeof onSpinEnd === "function") {
-        // pequeño retardo para asegurar que las animaciones "resultado" se hayan aplicado
         setTimeout(() => onSpinEnd(), 50);
       }
     }
@@ -97,35 +87,32 @@ export const Wheel = ({
     return redNumbers.includes(num) ? "red" : "black";
   };
 
-  const WinningsEffect = () => {
-    return (
-      <div className="absolute inset-0 z-40 overflow-hidden pointer-events-none">
-        {Array.from({ length: 50 }).map((_, i) => (
-          <div
-            key={i}
-            className="absolute w-4 h-8 bg-green-500 rounded opacity-0 animate-bill-fall"
-            style={{
-              left: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 2}s`,
-              animationDuration: `${2 + Math.random()}s`,
-            }}
-          />
-        ))}
-        <div className="absolute inset-0 flex items-center justify-center text-5xl font-extrabold text-white animate-fade-in-out">
-          ¡HAS GANADO!
-        </div>
+  const WinningsEffect = () => (
+    <div className="absolute inset-0 z-40 overflow-hidden pointer-events-none">
+      {Array.from({ length: 50 }).map((_, i) => (
+        <div
+          key={i}
+          className="absolute w-4 h-8 bg-green-500 rounded opacity-0 animate-bill-fall"
+          style={{
+            left: `${Math.random() * 100}%`,
+            animationDelay: `${Math.random() * 2}s`,
+            animationDuration: `${2 + Math.random()}s`,
+          }}
+        />
+      ))}
+      <div className="absolute inset-0 flex items-center justify-center text-5xl font-extrabold text-white animate-fade-in-out">
+        ¡HAS GANADO!
       </div>
-    );
-  };
+    </div>
+  );
 
-  // Determina el estado a mostrar basado exclusivamente en las props (las cuales vienen del back + parenTotalBet)
   const didPlayerBet = (playerTotalBet ?? 0) > 0;
   const serverWonAmount =
     typeof winningAmount === "number" ? winningAmount : null;
+
   const showWin =
     didPlayerBet && serverWonAmount !== null && serverWonAmount > 0;
-  const showLose =
-    didPlayerBet && serverWonAmount !== null && serverWonAmount === 0;
+  const showLose = didPlayerBet && serverWonAmount === 0;
   const showNoBet = !didPlayerBet;
 
   return (
@@ -143,7 +130,7 @@ export const Wheel = ({
         alt="Roulette Wheel"
         className={`absolute w-4/5 h-4/5 z-10 ${
           isTransitioning
-            ? `transition-transform duration-[4000ms] cubic-bezier(0.1, 0.7, 0.1, 1)`
+            ? "transition-transform duration-[4000ms] cubic-bezier(0.1, 0.7, 0.1, 1)"
             : isSpinning
             ? "transition-none"
             : ""
@@ -155,7 +142,7 @@ export const Wheel = ({
       <div
         className={`absolute w-full h-full flex items-center justify-center z-20 ${
           isTransitioning
-            ? `transition-transform duration-[4000ms] cubic-bezier(0.1, 0.1, 0.25, 1)`
+            ? "transition-transform duration-[4000ms] cubic-bezier(0.1, 0.1, 0.25, 1)"
             : isSpinning
             ? "transition-none"
             : ""
@@ -169,9 +156,7 @@ export const Wheel = ({
               ? "transition-all duration-[3500ms] ease-in-out animate-ball-rebound"
               : ""
           }`}
-          style={{
-            transform: `translateY(-${ballRadius}px)`,
-          }}
+          style={{ transform: `translateY(-${ballRadius}px)` }}
         />
       </div>
 
@@ -181,9 +166,7 @@ export const Wheel = ({
           <div className="absolute -top-14 flex items-center justify-center z-30">
             <div
               className="p-2 rounded-md text-2xl font-bold text-white border-2 border-white shadow-lg"
-              style={{
-                backgroundColor: getNumberColor(winningNumber),
-              }}
+              style={{ backgroundColor: getNumberColor(winningNumber) }}
             >
               {winningNumber}
             </div>
@@ -191,7 +174,7 @@ export const Wheel = ({
 
           <div className="absolute bottom-20 flex items-center justify-center z-30 w-full">
             {showWin ? (
-              <div className="bg-gradient-to-r from-black/60 via-green-500 to-black/60 opacity-100 text-white px-6 py-3 animate-pulse">
+              <div className="bg-gradient-to-r from-black/60 via-green-500 to-black/60 text-white px-6 py-3 animate-pulse">
                 <div className="text-center">
                   <div className="text-xl font-bold">¡HAS GANADO!</div>
                   <div className="text-lg">
@@ -200,7 +183,7 @@ export const Wheel = ({
                 </div>
               </div>
             ) : showLose ? (
-              <div className="bg-gradient-to-r from-black/60 via-red-500 to-black/60 opacity-100 text-white px-6 py-3">
+              <div className="bg-gradient-to-r from-black/60 via-red-500 to-black/60 text-white px-6 py-3">
                 <div className="text-center">
                   <div className="text-xl font-bold">Has Perdido</div>
                   <div className="text-lg">Mejor suerte la próxima vez</div>
@@ -214,7 +197,6 @@ export const Wheel = ({
                 </div>
               </div>
             ) : (
-              // Fallback neutral
               <div className="bg-black/60 text-white px-6 py-3 rounded-md">
                 <div className="text-center">Resultado</div>
               </div>

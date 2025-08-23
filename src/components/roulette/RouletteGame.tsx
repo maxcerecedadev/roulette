@@ -150,9 +150,6 @@ export const RouletteGame = ({ mode, player }: RouletteGameProps) => {
               winningNumber={winningNumber}
               winningAmount={pendingWinnings}
               playerTotalBet={totalBet}
-              onSpinEnd={() => {
-                // Opcional: disparar sonido o analytics
-              }}
             />
           </div>
         </div>

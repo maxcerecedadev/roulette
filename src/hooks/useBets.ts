@@ -18,10 +18,12 @@ export function useBets({
   const setBetsAndRef = (next: Record<string, number>) => {
     betsRef.current = next;
     setBets(next);
+    console.log("[setBetsAndRef] updated betsRef:", next);
   };
   const setBetsDisplayAndRef = (next: Record<string, number>) => {
     betsDisplayRef.current = next;
     setBetsDisplay(next);
+    console.log("[setBetsDisplayAndRef] updated betsDisplayRef:", next);
   };
 
   // placeBet: emits to server and updates local normalized/display maps
@@ -40,6 +42,14 @@ export function useBets({
     let payload: BetPayload;
     try {
       payload = buildBetPayload(displayKey, amount, roomId);
+      console.log(
+        "[placeBet] displayKey:",
+        displayKey,
+        "amount:",
+        amount,
+        "payload:",
+        payload
+      );
     } catch (err) {
       console.error("placeBet: buildBetPayload failed:", err);
       return;
@@ -66,6 +76,7 @@ export function useBets({
 
     // save for repeat
     lastBetRef.current = { ...nextDisplay };
+    console.log("[placeBet] lastBetRef updated:", lastBetRef.current);
 
     // feedback
     try {
@@ -77,6 +88,7 @@ export function useBets({
 
   function clearBets(socketRef: SocketRefCurrent, roomId?: string) {
     const socket = socketRef.current;
+    console.log("[clearBets] clearing bets for room:", roomId);
     if (socket) {
       socket.emit(
         "clear-bets",
@@ -87,7 +99,6 @@ export function useBets({
       );
     }
 
-    // clear local state
     setBetsAndRef({});
     setBetsDisplayAndRef({});
     try {
@@ -104,8 +115,8 @@ export function useBets({
 
     const [lastDisplayKey, lastAmount] =
       displayEntries[displayEntries.length - 1];
+    console.log("[undoBet] undoing last bet:", lastDisplayKey, lastAmount);
 
-    // normalize display key if possible
     let normalizedKey: string | null = null;
     try {
       normalizedKey = buildBetPayload(lastDisplayKey, 1).betKey;
@@ -123,14 +134,12 @@ export function useBets({
       );
     }
 
-    // update display map
     const nextDisplay: Record<string, number> = { ...betsDisplayRef.current };
     nextDisplay[lastDisplayKey] =
       (nextDisplay[lastDisplayKey] || 0) - lastAmount;
     if (nextDisplay[lastDisplayKey] <= 0) delete nextDisplay[lastDisplayKey];
     setBetsDisplayAndRef(nextDisplay);
 
-    // update normalized map
     if (normalizedKey) {
       const nextNormalized: Record<string, number> = { ...betsRef.current };
       nextNormalized[normalizedKey] =
@@ -152,8 +161,9 @@ export function useBets({
       return;
 
     const lastDisplay = lastBetRef.current;
-    const normalizedMap: Record<string, number> = {};
+    console.log("[repeatBet] repeating bets:", lastDisplay);
 
+    const normalizedMap: Record<string, number> = {};
     for (const displayKey in lastDisplay) {
       const amount = lastDisplay[displayKey];
       try {
@@ -190,11 +200,17 @@ export function useBets({
     Object.keys(betsDisplayRef.current).forEach((k) => {
       doubledDisplay[k] = (betsDisplayRef.current[k] || 0) * 2;
     });
-
     const doubledNormalized: Record<string, number> = {};
     Object.keys(betsRef.current).forEach((k) => {
       doubledNormalized[k] = (betsRef.current[k] || 0) * 2;
     });
+
+    console.log(
+      "[doubleBet] doubledDisplay:",
+      doubledDisplay,
+      "doubledNormalized:",
+      doubledNormalized
+    );
 
     const socket = socketRef.current;
     if (socket) {
