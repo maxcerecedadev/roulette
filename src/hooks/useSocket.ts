@@ -20,6 +20,7 @@ export interface GameStateUpdate {
   totalWinnings: number;
   newBalance?: number;
   betResults?: BetResultItem[];
+  resultStatus?: "win" | "lose" | "no_bet";
 }
 
 export type GenericServerAck = {

@@ -27,12 +27,15 @@ export function useRouletteGame({
   const [isReady, setIsReady] = useState<boolean>(false);
   const [gameState, setGameState] = useState<string>("idle");
   const [timer, setTimer] = useState<number | null>(null);
+  const [resultStatus, setResultStatus] = useState<
+    "win" | "lose" | "no_bet" | null
+  >(null);
 
   const navigate = useNavigate();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const spinningRef = useRef<boolean>(false);
   const sound = useSoundController();
-  const prevGameState = useRef<string>("idle"); // Nuevo: referencia para el estado anterior
+  const prevGameState = useRef<string>("idle");
 
   const {
     bets,
@@ -49,6 +52,7 @@ export function useRouletteGame({
   } = useBets({});
 
   const onGameStateUpdate = (data: GameStateUpdate) => {
+    console.log("📦 [Payload crudo recibido]:", JSON.stringify(data, null, 2));
     console.log(
       `🕹️ [onGameStateUpdate] Estado recibido: ${data.state} | Estado anterior: ${prevGameState.current} | Número ganador: ${data.winningNumber} | Ganancias totales: ${data.totalWinnings}`
     );
@@ -59,10 +63,9 @@ export function useRouletteGame({
       timerRef.current = null;
     }
 
-    setGameState(data.state); // --- Fase de Apuestas ---
+    setGameState(data.state);
 
     if (data.state === "betting") {
-      // Limpia solo al inicio de la fase de apuestas, no en cada tick
       if (prevGameState.current !== "betting") {
         console.log("💰 [Fase Apuestas] Reiniciando la partida.");
         setIsSpinning(false);
@@ -73,6 +76,8 @@ export function useRouletteGame({
         betsRef.current = {};
         setBetsDisplayAndRef({});
         betsDisplayRef.current = {};
+        // 🔄 LIMPIEZA ADICIONAL: Limpiamos el resultado de la ronda anterior
+        setResultStatus(null);
       }
 
       const remaining = data.time ?? 0;
@@ -92,7 +97,7 @@ export function useRouletteGame({
       }, 1000);
 
       sound.playSound("clock");
-    } // --- Fase de Giro ---
+    }
 
     if (data.state === "spinning") {
       console.log("🌀 [Fase Giro] El servidor ha iniciado el giro.");
@@ -108,10 +113,14 @@ export function useRouletteGame({
         sound.playSound("spin");
         console.log("🎶 [Fase Giro] Reproduciendo sonido de giro.");
       }
-    } // --- Fase de Pago ---
+    }
 
     if (data.state === "payout") {
-      console.log("💸 [Fase Pago] Estado de pago recibido.");
+      console.log(
+        "💸 [Fase Pago] Estado de pago recibido. Datos completos:",
+        data
+      );
+
       setIsSpinning(true);
 
       if (data.winningNumber != null) {
@@ -119,47 +128,75 @@ export function useRouletteGame({
           typeof data.totalWinnings === "number" ? data.totalWinnings : 0;
         const newBalance =
           typeof data.newBalance === "number" ? data.newBalance : balance;
+
         console.log(
-          `💰 [Fase Pago] Actualizando balance. Ganancias: ${totalWin} | Nuevo Balance: ${newBalance}`
+          `💰 [Fase Pago] Ganancias: ${totalWin} | Nuevo Balance: ${newBalance}`
         );
         setPendingWinnings(totalWin);
         setBalance(newBalance);
 
-        setWinningNumberHistory((prev) => {
-          const newHistory = [
+        if (data.resultStatus) {
+          console.log(
+            `📊 [Resultado] Servidor dice: ${data.resultStatus} | Payload crudo:`,
+            JSON.stringify(data, null, 2)
+          );
+          setResultStatus(data.resultStatus);
+        } else {
+          console.warn(
+            "⚠️ [Resultado] El servidor NO envió resultStatus en este payload.",
+            data
+          );
+        }
+
+        setWinningNumberHistory((prev) =>
+          [
             {
               number: data.winningNumber,
               color: data.winningColor ?? getColor(data.winningNumber),
             },
             ...prev,
-          ].slice(0, 10);
-          console.log(
-            "📜 [Historial] Historial de números ganadores actualizado."
-          );
-          return newHistory;
-        });
+          ].slice(0, 5)
+        );
+
         const didPlayerBet = Object.keys(betsDisplayRef.current).length > 0;
+        console.log(
+          `📝 [Apuestas] ¿El jugador apostó en esta ronda?: ${didPlayerBet}`
+        );
         if (didPlayerBet) {
-          console.log(
-            "✨ [Apuestas] Guardando la última apuesta para la siguiente ronda."
-          );
           lastBetRef.current = { ...betsDisplayRef.current };
+          console.log(
+            "✨ [Apuestas] Última apuesta guardada:",
+            lastBetRef.current
+          );
         }
 
         console.log("🧹 [Apuestas] Limpiando apuestas de la ronda actual.");
 
-        if (totalWin > 0) {
+        if (data.resultStatus === "win") {
           console.log(
             "🎶 [Sonido] ¡Ganaste! Reproduciendo sonido de victoria."
           );
           sound.playSound("win");
-        } else if (didPlayerBet) {
+        } else if (data.resultStatus === "lose") {
           console.log("🎶 [Sonido] Perdiste. Reproduciendo sonido de derrota.");
           sound.playSound("lose");
+        } else if (data.resultStatus === "no_bet") {
+          console.log("😐 [Sonido] No apostaste, no se reproduce sonido.");
+        } else {
+          console.warn(
+            "⚠️ [Resultado] resultStatus desconocido o ausente:",
+            data.resultStatus
+          );
         }
+      } else {
+        console.warn(
+          "⚠️ [Fase Pago] No vino número ganador en el payload:",
+          data
+        );
       }
     }
-    prevGameState.current = data.state; // Actualizar el estado anterior al final de la función
+
+    prevGameState.current = data.state;
   };
 
   const { socketRef } = useSocket({ onGameStateUpdate });
@@ -298,6 +335,7 @@ export function useRouletteGame({
     handleRepeatBet,
     handleDoubleBet,
     handleLeaveAndNavigate,
+    resultStatus,
     sound,
   } as const;
 }

@@ -1,7 +1,5 @@
 // src/components/WinningsEffect.tsx
 
-import React from "react";
-
 interface WinningsEffectProps {
   amount: number;
 }
@@ -10,7 +8,6 @@ export const WinningsEffect = ({ amount }: WinningsEffectProps) => {
   // Retornar un div con una animación de billetes
   return (
     <div className="absolute inset-0 z-40 overflow-hidden pointer-events-none">
-      {/* Animación de billetes cayendo */}
       {Array.from({ length: 50 }).map((_, i) => (
         <div
           key={i}

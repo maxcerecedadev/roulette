@@ -4,13 +4,13 @@ import { useState } from "react";
 
 export const Menu = ({ onSelectMode, onLogin }: MenuProps) => {
   const [username, setUsername] = useState<string>("");
-
   const handleStartTournament = () => {
     if (username.trim() === "") {
       alert("Por favor, ingresa tu nombre de usuario.");
       return;
     }
-    const player: Player = { name: username, score: 0 };
+    const initialBalance = 1000;
+    const player: Player = { name: username, balance: initialBalance };
     onLogin(player);
     onSelectMode("tournament");
   };

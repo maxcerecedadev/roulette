@@ -32,6 +32,7 @@ export const RouletteGame = ({ mode, player }: RouletteGameProps) => {
     handleDoubleBet,
     handleLeaveAndNavigate,
     setSelectedChip,
+    resultStatus,
     gameState,
     timer,
   } = useRouletteGame({ mode, player });
@@ -150,6 +151,7 @@ export const RouletteGame = ({ mode, player }: RouletteGameProps) => {
               winningNumber={winningNumber}
               winningAmount={pendingWinnings}
               playerTotalBet={totalBet}
+              resultStatus={resultStatus}
             />
           </div>
         </div>

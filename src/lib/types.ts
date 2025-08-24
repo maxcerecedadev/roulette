@@ -252,8 +252,10 @@ export interface RouletteBetButtonProps {
 export interface WheelProps {
   winningNumber: number | null;
   isSpinning: boolean;
+  resultStatus: "win" | "lose" | "no_bet" | null;
+  winningAmount: number | null;
+  playerTotalBet?: number;
   onSpinEnd?: () => void;
-  winningAmount?: number;
 }
 
 export interface LeaveGameDialogProps {

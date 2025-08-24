@@ -1,3 +1,5 @@
+// src/components/Wheel.tsx (Versión corregida)
+import type { WheelProps } from "@/lib/types";
 import { useEffect, useState, useRef } from "react";
 
 const wheelNumMap = [
@@ -18,21 +20,13 @@ const getWheelRotation = (num: number) => {
 
 const getBallRotation = () => -2880;
 
-type LocalWheelProps = {
-  winningNumber: number | null;
-  isSpinning: boolean;
-  winningAmount: number | null;
-  playerTotalBet?: number;
-  onSpinEnd?: () => void;
-};
-
 export const Wheel = ({
   winningNumber,
   isSpinning,
+  resultStatus,
   winningAmount,
-  playerTotalBet = 0,
   onSpinEnd,
-}: LocalWheelProps) => {
+}: WheelProps) => {
   const [finalRotation, setFinalRotation] = useState({
     wheel: 0,
     ball: Math.random() * 360,
@@ -42,13 +36,21 @@ export const Wheel = ({
   const [ballRadius, setBallRadius] = useState(BALL_RADIUS_START);
   const prevIsSpinning = useRef(false);
 
-  // Inicia el giro
+  // Reinicia el estado visual cuando se detiene el giro
   useEffect(() => {
-    if (isSpinning && !prevIsSpinning.current) {
+    if (!isSpinning && prevIsSpinning.current) {
+      // Reiniciar solo cuando el giro termina (de true a false)
       setShowResult(false);
       setIsTransitioning(false);
       setBallRadius(BALL_RADIUS_START);
 
+      const randomRotWheel = 10000 + Math.random() * 500;
+      const randomRotBall = -10000 + Math.random() * 500;
+      setFinalRotation({ wheel: randomRotWheel, ball: randomRotBall });
+    }
+    // Inicia el giro
+    if (isSpinning && !prevIsSpinning.current) {
+      // Simplemente iniciamos el giro, la limpieza ya se hizo antes
       const randomRotWheel = 10000 + Math.random() * 500;
       const randomRotBall = -10000 + Math.random() * 500;
       setFinalRotation({ wheel: randomRotWheel, ball: randomRotBall });
@@ -82,7 +84,7 @@ export const Wheel = ({
   const getNumberColor = (num: number) => {
     if (num === 0) return "green";
     const redNumbers = [
-      32, 19, 21, 25, 27, 30, 36, 34, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3,
+      32, 19, 21, 25, 27, 30, 36, 34, 23, 5, 16, 1, 14, 9, 18, 7, 28, 12, 3,
     ];
     return redNumbers.includes(num) ? "red" : "black";
   };
@@ -105,15 +107,6 @@ export const Wheel = ({
       </div>
     </div>
   );
-
-  const didPlayerBet = (playerTotalBet ?? 0) > 0;
-  const serverWonAmount =
-    typeof winningAmount === "number" ? winningAmount : null;
-
-  const showWin =
-    didPlayerBet && serverWonAmount !== null && serverWonAmount > 0;
-  const showLose = didPlayerBet && serverWonAmount === 0;
-  const showNoBet = !didPlayerBet;
 
   return (
     <div className="relative w-96 h-96 flex items-center justify-center">
@@ -173,39 +166,35 @@ export const Wheel = ({
           </div>
 
           <div className="absolute bottom-20 flex items-center justify-center z-30 w-full">
-            {showWin ? (
+            {resultStatus === "win" ? (
               <div className="bg-gradient-to-r from-black/60 via-green-500 to-black/60 text-white px-6 py-3 animate-pulse">
                 <div className="text-center">
                   <div className="text-xl font-bold">¡HAS GANADO!</div>
                   <div className="text-lg">
-                    $ {serverWonAmount!.toLocaleString()}
+                    $ {winningAmount?.toLocaleString()}
                   </div>
                 </div>
               </div>
-            ) : showLose ? (
+            ) : resultStatus === "lose" ? (
               <div className="bg-gradient-to-r from-black/60 via-red-500 to-black/60 text-white px-6 py-3">
                 <div className="text-center">
                   <div className="text-xl font-bold">Has Perdido</div>
                   <div className="text-lg">Mejor suerte la próxima vez</div>
                 </div>
               </div>
-            ) : showNoBet ? (
+            ) : resultStatus === "no_bet" ? (
               <div className="bg-black/60 text-white px-6 py-3 rounded-md">
                 <div className="text-center">
                   <div className="text-xl font-bold">Sin Apuesta</div>
                   <div className="text-lg">No participaste en esta ronda</div>
                 </div>
               </div>
-            ) : (
-              <div className="bg-black/60 text-white px-6 py-3 rounded-md">
-                <div className="text-center">Resultado</div>
-              </div>
-            )}
+            ) : null}
           </div>
         </>
       )}
 
-      {showResult && showWin && <WinningsEffect />}
+      {showResult && resultStatus === "win" && <WinningsEffect />}
 
       {/* Animación de rebote */}
       <style>{`
