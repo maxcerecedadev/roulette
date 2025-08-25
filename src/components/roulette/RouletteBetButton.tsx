@@ -1,21 +1,7 @@
 // src/components/RouletteBetButton.tsx
 
 import type { RouletteBetButtonProps } from "@/lib/types";
-
-// Lógica para obtener la imagen del chip según el total de la apuesta
-const getChipImageSrc = (totalBet: number): string => {
-  if (totalBet >= 1000) {
-    return "/res/ChipOrange.svg";
-  } else if (totalBet >= 500) {
-    return "/res/ChipBlueDark.svg";
-  } else if (totalBet >= 200) {
-    return "/res/ChipRed.svg";
-  } else if (totalBet >= 100) {
-    return "/res/ChipGreen.svg";
-  } else {
-    return "/res/ChipBlueLight.svg";
-  }
-};
+import { getChipImageSrc } from "@/lib/utils/chipRoulette";
 
 export const RouletteBetButton = ({
   label,
@@ -48,7 +34,7 @@ export const RouletteBetButton = ({
 
       {showChip && (
         <div
-          className="absolute z-20 w-12 h-12 rounded-full border-2 border-white flex items-center justify-center transition-all duration-300"
+          className="absolute z-20 w-8 h-8 rounded-full border-2 border-white flex items-center justify-center transition-all duration-300"
           style={{
             transform: "translateY(0%) scale(1.1)",
             backgroundImage: `url(${chipImageSrc})`,

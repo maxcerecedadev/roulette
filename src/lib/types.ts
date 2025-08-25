@@ -1,36 +1,22 @@
-// src/lib/types.ts
-
 import type { Socket } from "socket.io-client";
 
 // Core Game Types
 // --------------------
-/**
- * Represents a number and its color in the roulette wheel.
- */
 export interface BetNumber {
   number: number;
   color: "r" | "b" | "g";
 }
 
-/**
- * A single bet item.
- */
 export interface Bet {
   betKey: string;
   amount: number;
 }
 
-/**
- * Represents the result of a spin.
- */
 export interface SpinResult {
   number: number;
   color: string;
 }
 
-/**
- * Represents a historical winning number.
- */
 export interface HistoryItem {
   number: number;
   color: "green" | "red" | "black";
@@ -125,62 +111,82 @@ export interface JoinRoomResponse {
 
 // Roulette Logic Types
 // --------------------
-export type BetKey =
-  | "0"
-  | "1"
-  | "2"
-  | "3"
-  | "4"
-  | "5"
-  | "6"
-  | "7"
-  | "8"
-  | "9"
-  | "10"
-  | "11"
-  | "12"
-  | "13"
-  | "14"
-  | "15"
-  | "16"
-  | "17"
-  | "18"
-  | "19"
-  | "20"
-  | "21"
-  | "22"
-  | "23"
-  | "24"
-  | "25"
-  | "26"
-  | "27"
-  | "28"
-  | "29"
-  | "30"
-  | "31"
-  | "32"
-  | "33"
-  | "34"
-  | "35"
-  | "36"
-  | "2:1-1"
-  | "2:1-2"
-  | "2:1-3"
+type StraightBetKey = `${
+  | 0
+  | 1
+  | 2
+  | 3
+  | 4
+  | 5
+  | 6
+  | 7
+  | 8
+  | 9
+  | 10
+  | 11
+  | 12
+  | 13
+  | 14
+  | 15
+  | 16
+  | 17
+  | 18
+  | 19
+  | 20
+  | 21
+  | 22
+  | 23
+  | 24
+  | 25
+  | 26
+  | 27
+  | 28
+  | 29
+  | 30
+  | 31
+  | 32
+  | 33
+  | 34
+  | 35
+  | 36}`;
+type ColumnBetKey = `column_${1 | 2 | 3}`;
+type DozenBetKey = `dozen_${1 | 2 | 3}`;
+type EvenMoneyBetKey = `even_money_${
+  | "red"
+  | "black"
+  | "even"
+  | "odd"
+  | "low"
+  | "high"}`;
+type SplitBetKey = `split_${number}_${number}`;
+type StreetBetKey =
+  | "street_3_1"
+  | "street_6_4"
+  | "street_9_7"
+  | "street_12_10"
+  | "street_15_13"
+  | "street_18_16"
+  | "street_21_19"
+  | "street_24_22"
+  | "street_27_25"
+  | "street_30_28"
+  | "street_33_31"
+  | "street_36_34";
+
+// ✅ NUEVO TIPO: Claves de apuesta usadas en el frontend para el sombreado.
+type FrontendBetKey =
+  | "1-18"
+  | "19-36"
+  | "ROJO"
+  | "NEGRO"
+  | "PAR"
+  | "IMPAR"
   | "1os 12"
   | "2os 12"
   | "3os 12"
-  | "1-18"
-  | "PAR"
-  | "ROJO"
-  | "NEGRO"
-  | "IMPAR"
-  | "19-36";
-
-export interface RouletteBet {
-  [key: string]: number;
-}
-
-export type RoulettePlaceBet = (betKey: BetKey) => void;
+  | "2:1-1"
+  | "2:1-2"
+  | "2:1-3";
 
 export interface RouletteTableProps {
   bets: RouletteBet;
@@ -271,12 +277,25 @@ export declare class Roulette {
   getAllBetNumbers(): BetNumber[];
 }
 
-export interface RouletteGameProps {
-  mode: GameMode;
-  player?: Player;
-}
+// ✅ Unimos las claves de backend y frontend en un solo tipo
+export type BetKey =
+  | StraightBetKey
+  | ColumnBetKey
+  | DozenBetKey
+  | EvenMoneyBetKey
+  | SplitBetKey
+  | StreetBetKey
+  | FrontendBetKey;
 
-export interface SingleJoinResponse {
-  roomId?: string;
-  error?: string;
+// ✅ El objeto RouletteBet ahora incluye todas las claves posibles.
+export type RouletteBet = Partial<Record<BetKey, number>>;
+
+export type RoulettePlaceBet = (betKey: BetKey) => void;
+
+export interface RouletteNumberCellProps {
+  label: string;
+  betKey: BetKey;
+  totalBet: number;
+  bets: RouletteBet;
+  onClick: RoulettePlaceBet;
 }
