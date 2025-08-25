@@ -7,6 +7,8 @@ import { useSocket, type GameStateUpdate } from "./useSocket";
 import { useBets } from "./useBets";
 import { useSoundController } from "./useSoundController";
 import type { GameMode, Player } from "@/lib/types";
+import { isBetAllowed } from "@/lib/utils/rouletteRules";
+import { getBackendKeyFromDisplayKey } from "@/lib/utils/rouletteRules"; // Importa la nueva función
 
 export function useRouletteGame({
   player,
@@ -52,13 +54,7 @@ export function useRouletteGame({
   } = useBets({});
 
   const onGameStateUpdate = (data: GameStateUpdate) => {
-    console.log("📦 [Payload crudo recibido]:", JSON.stringify(data, null, 2));
-    console.log(
-      `🕹️ [onGameStateUpdate] Estado recibido: ${data.state} | Estado anterior: ${prevGameState.current} | Número ganador: ${data.winningNumber} | Ganancias totales: ${data.totalWinnings}`
-    );
-
     if (timerRef.current) {
-      console.log("⏳ [onGameStateUpdate] Limpiando temporizador anterior.");
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
@@ -67,7 +63,6 @@ export function useRouletteGame({
 
     if (data.state === "betting") {
       if (prevGameState.current !== "betting") {
-        console.log("💰 [Fase Apuestas] Reiniciando la partida.");
         setIsSpinning(false);
         spinningRef.current = false;
         setWinningNumber(null);
@@ -76,16 +71,11 @@ export function useRouletteGame({
         betsRef.current = {};
         setBetsDisplayAndRef({});
         betsDisplayRef.current = {};
-        // 🔄 LIMPIEZA ADICIONAL: Limpiamos el resultado de la ronda anterior
         setResultStatus(null);
       }
 
       const remaining = data.time ?? 0;
       setTimer(remaining);
-      console.log(
-        `⏳ [Fase Apuestas] Temporizador de apuestas iniciado: ${remaining}s`
-      );
-
       let countdown = remaining;
       timerRef.current = setInterval(() => {
         countdown--;
@@ -100,27 +90,17 @@ export function useRouletteGame({
     }
 
     if (data.state === "spinning") {
-      console.log("🌀 [Fase Giro] El servidor ha iniciado el giro.");
       if (data.winningNumber != null) {
         setWinningNumber(data.winningNumber);
-        console.log(
-          `🎉 [Fase Giro] Número ganador recibido: ${data.winningNumber}`
-        );
       }
       if (!spinningRef.current) {
         setIsSpinning(true);
         spinningRef.current = true;
         sound.playSound("spin");
-        console.log("🎶 [Fase Giro] Reproduciendo sonido de giro.");
       }
     }
 
     if (data.state === "payout") {
-      console.log(
-        "💸 [Fase Pago] Estado de pago recibido. Datos completos:",
-        data
-      );
-
       setIsSpinning(true);
 
       if (data.winningNumber != null) {
@@ -129,23 +109,11 @@ export function useRouletteGame({
         const newBalance =
           typeof data.newBalance === "number" ? data.newBalance : balance;
 
-        console.log(
-          `💰 [Fase Pago] Ganancias: ${totalWin} | Nuevo Balance: ${newBalance}`
-        );
         setPendingWinnings(totalWin);
         setBalance(newBalance);
 
         if (data.resultStatus) {
-          console.log(
-            `📊 [Resultado] Servidor dice: ${data.resultStatus} | Payload crudo:`,
-            JSON.stringify(data, null, 2)
-          );
           setResultStatus(data.resultStatus);
-        } else {
-          console.warn(
-            "⚠️ [Resultado] El servidor NO envió resultStatus en este payload.",
-            data
-          );
         }
 
         setWinningNumberHistory((prev) =>
@@ -158,41 +126,16 @@ export function useRouletteGame({
           ].slice(0, 5)
         );
 
-        const didPlayerBet = Object.keys(betsDisplayRef.current).length > 0;
-        console.log(
-          `📝 [Apuestas] ¿El jugador apostó en esta ronda?: ${didPlayerBet}`
-        );
+        const didPlayerBet = Object.keys(betsRef.current).length > 0;
         if (didPlayerBet) {
           lastBetRef.current = { ...betsDisplayRef.current };
-          console.log(
-            "✨ [Apuestas] Última apuesta guardada:",
-            lastBetRef.current
-          );
         }
-
-        console.log("🧹 [Apuestas] Limpiando apuestas de la ronda actual.");
 
         if (data.resultStatus === "win") {
-          console.log(
-            "🎶 [Sonido] ¡Ganaste! Reproduciendo sonido de victoria."
-          );
           sound.playSound("win");
         } else if (data.resultStatus === "lose") {
-          console.log("🎶 [Sonido] Perdiste. Reproduciendo sonido de derrota.");
           sound.playSound("lose");
-        } else if (data.resultStatus === "no_bet") {
-          console.log("😐 [Sonido] No apostaste, no se reproduce sonido.");
-        } else {
-          console.warn(
-            "⚠️ [Resultado] resultStatus desconocido o ausente:",
-            data.resultStatus
-          );
         }
-      } else {
-        console.warn(
-          "⚠️ [Fase Pago] No vino número ganador en el payload:",
-          data
-        );
       }
     }
 
@@ -208,10 +151,6 @@ export function useRouletteGame({
     const user = player ?? generateRandomUser();
 
     const onConnect = () => {
-      console.log(
-        "🌐 [socket] Conectado. Uniendo a la sala con el usuario:",
-        user.name
-      );
       socket.emit(
         "single-join",
         { userId: user.id, userName: user.name, balance: user.balance },
@@ -219,7 +158,6 @@ export function useRouletteGame({
           if (response?.roomId) {
             setRoomId(response.roomId);
             setIsReady(true);
-            console.log(`🚪 [socket] Unido a la sala: ${response.roomId}`);
           } else if (response?.error) {
             console.error(
               `❌ [socket] Error al unirse a la sala: ${response.error}`
@@ -233,15 +171,11 @@ export function useRouletteGame({
     socket.on(
       "player-initialized",
       (data: { balance: number; playerId: string }) => {
-        console.log(
-          `✅ [player-initialized] Jugador inicializado. Balance: ${data.balance}`
-        );
         setBalance(data.balance);
       }
     );
 
     return () => {
-      console.log("🔌 [socket] Desconectando listeners de socket.");
       socket.off("connect", onConnect);
       socket.off("player-initialized");
       if (timerRef.current) {
@@ -251,6 +185,15 @@ export function useRouletteGame({
   }, [socketRef, player]);
 
   const handlePlaceBet = (displayKey: string) => {
+    const backendKey = getBackendKeyFromDisplayKey(displayKey);
+
+    if (!isBetAllowed(backendKey, betsRef.current)) {
+      console.warn(
+        `🚫 [Apuesta] Validación de reglas falló para la apuesta ${displayKey}`
+      );
+      return;
+    }
+
     if (!socketRef.current || !roomId || !isReady || gameState !== "betting") {
       console.warn(
         "🚫 [Apuesta] No se puede apostar en este momento. Estado actual:",
@@ -267,48 +210,34 @@ export function useRouletteGame({
     setBalance((b) => b - selectedChip);
     setTotalBet((t) => t + selectedChip);
     sound.playSound("chip");
-
-    console.log(
-      `🟢 [handlePlaceBet] Apostando ${selectedChip} en: ${displayKey} | Nuevo saldo: ${
-        balance - selectedChip
-      }`
-    );
   };
 
   const handleClearBets = () => {
     if (!socketRef.current || !roomId) return;
-    console.log("🧹 [Controles] Borrando todas las apuestas.");
     clearBets(socketRef, roomId);
     setTotalBet(0);
   };
 
   const handleUndoBet = () => {
     if (!socketRef.current || !roomId) return;
-    console.log("↩️ [Controles] Deshaciendo la última apuesta.");
     undoBet(socketRef, roomId);
   };
 
   const handleRepeatBet = () => {
     if (!socketRef.current || !roomId) return;
-    console.log("🔁 [Controles] Repitiendo la última apuesta.");
     repeatBet(socketRef, roomId);
   };
 
   const handleDoubleBet = () => {
     if (!socketRef.current || !roomId) return;
-    console.log("2️⃣ [Controles] Doblando la última apuesta.");
     doubleBet(socketRef, roomId);
   };
 
   const handleLeaveAndNavigate = () => {
     if (socketRef.current && roomId) {
-      console.log(`🚪 [Salir] Abandonando la sala ${roomId}.`);
       socketRef.current.emit("leave-room", { roomId });
       socketRef.current.disconnect();
     }
-    console.log(
-      "[handleLeaveAndNavigate] Navegando de vuelta a la pantalla de inicio."
-    );
     navigate("/");
   };
 

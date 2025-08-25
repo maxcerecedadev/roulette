@@ -2,6 +2,7 @@
 
 import type { RouletteBetButtonProps } from "@/lib/types";
 
+// Lógica para obtener la imagen del chip según el total de la apuesta
 const getChipImageSrc = (totalBet: number): string => {
   if (totalBet >= 1000) {
     return "/res/ChipOrange.svg";

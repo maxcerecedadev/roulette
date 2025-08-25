@@ -2,223 +2,52 @@
 
 import type { Socket } from "socket.io-client";
 
-// BetNumber
+// Core Game Types
 // --------------------
 /**
- * Representa un número y su color en la ruleta.
+ * Represents a number and its color in the roulette wheel.
  */
 export interface BetNumber {
   number: number;
   color: "r" | "b" | "g";
 }
 
-// --------------------
-// BetHistoryItem
-// --------------------
 /**
- * Representa un historial de apuestas con los números y la cantidad apostada.
+ * A single bet item.
  */
-
-// --------------------
-// ChipButton
-// --------------------
-/**
- * Propiedades de un componente de botón para fichas de apuesta.
- */
-
-/**
- * Métodos disponibles para un componente de botón de ficha.
- */
-export interface ChipButtonMethods {
-  setActive: () => void;
-  setInactive: () => void;
+export interface Bet {
+  betKey: string;
+  amount: number;
 }
 
 /**
- * Tipo completo para un botón de ficha, combinando propiedades y métodos.
+ * Represents the result of a spin.
  */
-export type ChipButtonType = ChipButtonProps & ChipButtonMethods;
-
-/**
- * Métodos disponibles para un botón de apuesta en la ruleta.
- */
-export interface RouletteBetButtonMethods {
-  addBet: (amount: number) => void;
-  clearBet: () => void;
-  getTotalBetAmount: () => number;
-  // El tipo de retorno de `getHistoryData` debería ser `BetHistoryItem`.
-  getHistoryData: () => BetHistoryItem;
+export interface SpinResult {
+  number: number;
+  color: string;
 }
 
 /**
- * Tipo completo para un botón de apuesta en la ruleta.
+ * Represents a historical winning number.
  */
-export type RouletteBetButtonType = RouletteBetButtonProps &
-  RouletteBetButtonMethods;
-
-// --------------------
-// MusicPlayer
-// --------------------
-/**
- * Propiedades y métodos para un reproductor de música.
- */
-export interface MusicPlayerProps {
-  files: string[];
-  initialVolume?: number;
-  repeat?: boolean;
-  playing?: boolean;
-  // `play` y `pause` no deben estar aquí, son métodos de una clase o componente, no propiedades.
-  // play: () => void;
-  // pause: () => void;
+export interface HistoryItem {
+  number: number;
+  color: "green" | "red" | "black";
 }
 
-/**
- * Métodos para un reproductor de música.
- */
-export interface MusicPlayerMethods {
-  play: () => void;
-  pause: () => void;
-}
-
-/**
- * Tipo completo para el reproductor de música.
- */
-export type MusicPlayerType = MusicPlayerProps & MusicPlayerMethods;
-
+// Player and Game Types
 // --------------------
-// Wheel
-// --------------------
-/**
- * Propiedades y métodos para el componente de la rueda de la ruleta.
- */
-
-export interface WheelMethods {
-  spin: (winningNumber: number, winningColor: string) => void;
-}
-
-/**
- * Tipo completo para la rueda de la ruleta.
- */
-export type WheelType = WheelProps & WheelMethods;
-
-// --------------------
-// Roulette options
-// --------------------
-/**
- * Opciones de configuración para la clase `Roulette`.
- */
-export interface RouletteOptions {
-  // El tipo de `chipButtons` debe ser un array de `ChipButtonType`.
-  chipButtons?: ChipButtonType[];
-}
-
-// --------------------
-// Roulette main class
-// --------------------
-/**
- * Clase principal para gestionar el juego de la ruleta.
- */
-export declare class Roulette {
-  constructor(
-    container: HTMLElement,
-    musicPlayer: MusicPlayerType,
-    options?: RouletteOptions
-  );
-
-  // Propiedades
-  balance: number;
-  defaultBalance: number;
-  betAmount: number;
-
-  baseTableButtons: RouletteBetButtonType[][];
-  twoToOneButtons: RouletteBetButtonType[];
-  columnButtons: RouletteBetButtonType[];
-  bottomRowButtons: RouletteBetButtonType[];
-  zeroButton: RouletteBetButtonType;
-  chipButtons: ChipButtonType[];
-
-  // El tipo de `wheel` y `musicPlayer` debe ser el tipo completo (`WheelType` y `MusicPlayerType`).
-  wheel: WheelType;
-  musicPlayer: MusicPlayerType;
-
-  socket: typeof Socket | null;
-  roomId: string | null;
-
-  // Métodos principales
-  setSocket(socket: typeof Socket, roomId: string): void;
-  spin(): void;
-  setDefaultBalance(balance: number): void;
-  setBalance(balance: number): void;
-  renderBalance(): void;
-  renderBetTotal(): void;
-  getTotalBet(): number;
-  getAllBetButtons(): RouletteBetButtonType[];
-  clearBets(): void;
-  disconnectSocket(): void;
-  makeAllChipButtonsInactive(): void;
-
-  // Métodos adicionales
-  restart(): void;
-  clearLocalBets(): void;
-  doubleAmounts(): void;
-  // Parámetro `betButtons` debería ser de tipo `RouletteBetButtonType[]`.
-  getTotalBetOfBetButtons(betButtons: RouletteBetButtonType[]): number;
-  setBetAmount(amount: number): void;
-  getBetNumber(num: number): BetNumber;
-  getButtonsWithBets(): RouletteBetButtonType[];
-  renderWinningNumbers(): void;
-  getAllBetNumbers(): BetNumber[];
-}
-
-// --------------------
-// RouletteGame props
-// --------------------
-/**
- * Propiedades para inicializar un juego de ruleta.
- */
-
-// --------------------
-// Single join response
-// --------------------
-/**
- * Respuesta de unión a una sala.
- */
-export interface SingleJoinResponse {
-  roomId?: string;
-  error?: string;
-}
-
 export interface Player {
   id?: string;
   name: string;
   balance: number;
 }
 
-export interface RouletteGameProps {
-  mode: GameMode;
-  player?: Player;
-}
-
 export type GameMode = "single" | "tournament";
 
-export interface MenuProps {
-  onSelectMode: (mode: GameMode) => void;
-  onLogin: (player: Player) => void;
-}
-
-export interface RouletteProps {
-  mode: GameMode;
-  player?: Player;
-  onLeave: () => void;
-}
-
-export interface BetButtonProps {
-  number: BetNumber;
-  betAmount: number;
-  onPlaceBet: () => void;
-  colorClass: string;
-}
-
+// Component Props and Types
+// --------------------
 export interface ButtonProps {
   imageURL: string;
   size?: number;
@@ -267,21 +96,6 @@ export interface BetHistoryItem {
   amount: number;
 }
 
-export interface SpinResult {
-  number: number;
-  color: string;
-}
-
-export interface SpinResponse {
-  result?: SpinResult;
-  error?: string;
-}
-
-export interface HistoryItem {
-  number: number;
-  color: "green" | "red" | "black";
-}
-
 export interface WinningHistoryProps {
   winningNumberHistory: HistoryItem[];
 }
@@ -291,19 +105,11 @@ export interface WinningNumberHistoryItem {
   color: "green" | "red" | "black";
 }
 
-export interface RouletteTableProps {
-  bets: Bets;
-  handlePlaceBet: (bet: string) => void;
-  isDisabled: boolean;
-}
-
-export interface Bets {
-  [key: string]: number;
-}
-
-export interface Bet {
-  betKey: string;
-  amount: number;
+// API Response Types
+// --------------------
+export interface SpinResponse {
+  result?: SpinResult;
+  error?: string;
 }
 
 export interface JoinRoomResponse {
@@ -314,5 +120,163 @@ export interface JoinRoomResponse {
     name: string;
     balance: number;
   };
+  error?: string;
+}
+
+// Roulette Logic Types
+// --------------------
+export type BetKey =
+  | "0"
+  | "1"
+  | "2"
+  | "3"
+  | "4"
+  | "5"
+  | "6"
+  | "7"
+  | "8"
+  | "9"
+  | "10"
+  | "11"
+  | "12"
+  | "13"
+  | "14"
+  | "15"
+  | "16"
+  | "17"
+  | "18"
+  | "19"
+  | "20"
+  | "21"
+  | "22"
+  | "23"
+  | "24"
+  | "25"
+  | "26"
+  | "27"
+  | "28"
+  | "29"
+  | "30"
+  | "31"
+  | "32"
+  | "33"
+  | "34"
+  | "35"
+  | "36"
+  | "2:1-1"
+  | "2:1-2"
+  | "2:1-3"
+  | "1os 12"
+  | "2os 12"
+  | "3os 12"
+  | "1-18"
+  | "PAR"
+  | "ROJO"
+  | "NEGRO"
+  | "IMPAR"
+  | "19-36";
+
+export interface RouletteBet {
+  [key: string]: number;
+}
+
+export type RoulettePlaceBet = (betKey: BetKey) => void;
+
+export interface RouletteTableProps {
+  bets: RouletteBet;
+  handlePlaceBet: RoulettePlaceBet;
+}
+
+// Miscellaneous Types
+// --------------------
+export interface ChipButtonMethods {
+  setActive: () => void;
+  setInactive: () => void;
+}
+
+export type ChipButtonType = ChipButtonProps & ChipButtonMethods;
+
+export interface RouletteBetButtonMethods {
+  addBet: (amount: number) => void;
+  clearBet: () => void;
+  getTotalBetAmount: () => number;
+  getHistoryData: () => BetHistoryItem;
+}
+
+export type RouletteBetButtonType = RouletteBetButtonProps &
+  RouletteBetButtonMethods;
+
+export interface MusicPlayerProps {
+  files: string[];
+  initialVolume?: number;
+  repeat?: boolean;
+  playing?: boolean;
+}
+
+export interface MusicPlayerMethods {
+  play: () => void;
+  pause: () => void;
+}
+
+export type MusicPlayerType = MusicPlayerProps & MusicPlayerMethods;
+
+export interface WheelMethods {
+  spin: (winningNumber: number, winningColor: string) => void;
+}
+
+export type WheelType = WheelProps & WheelMethods;
+
+export interface RouletteOptions {
+  chipButtons?: ChipButtonType[];
+}
+
+export declare class Roulette {
+  constructor(
+    container: HTMLElement,
+    musicPlayer: MusicPlayerType,
+    options?: RouletteOptions
+  );
+  balance: number;
+  defaultBalance: number;
+  betAmount: number;
+  baseTableButtons: RouletteBetButtonType[][];
+  twoToOneButtons: RouletteBetButtonType[];
+  columnButtons: RouletteBetButtonType[];
+  bottomRowButtons: RouletteBetButtonType[];
+  zeroButton: RouletteBetButtonType;
+  chipButtons: ChipButtonType[];
+  wheel: WheelType;
+  musicPlayer: MusicPlayerType;
+  socket: typeof Socket | null;
+  roomId: string | null;
+  setSocket(socket: typeof Socket, roomId: string): void;
+  spin(): void;
+  setDefaultBalance(balance: number): void;
+  setBalance(balance: number): void;
+  renderBalance(): void;
+  renderBetTotal(): void;
+  getTotalBet(): number;
+  getAllBetButtons(): RouletteBetButtonType[];
+  clearBets(): void;
+  disconnectSocket(): void;
+  makeAllChipButtonsInactive(): void;
+  restart(): void;
+  clearLocalBets(): void;
+  doubleAmounts(): void;
+  getTotalBetOfBetButtons(betButtons: RouletteBetButtonType[]): number;
+  setBetAmount(amount: number): void;
+  getBetNumber(num: number): BetNumber;
+  getButtonsWithBets(): RouletteBetButtonType[];
+  renderWinningNumbers(): void;
+  getAllBetNumbers(): BetNumber[];
+}
+
+export interface RouletteGameProps {
+  mode: GameMode;
+  player?: Player;
+}
+
+export interface SingleJoinResponse {
+  roomId?: string;
   error?: string;
 }

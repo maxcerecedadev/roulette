@@ -1,33 +1,36 @@
 // src/hooks/useBets.ts
 import { useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
-import { buildBetPayload, type BetPayload } from "@/lib/utils/betUtils";
+import {
+  buildBetPayload,
+  type BetPayload,
+  normalizeBetKey,
+} from "@/lib/utils/betUtils";
+import { isBetAllowed } from "@/lib/utils/rouletteRules";
 
 export type SocketRefCurrent = React.MutableRefObject<Socket | null>;
 
 export function useBets({
   sound,
 }: { sound?: { playSound?: (name: string) => void } } = {}) {
-  const [bets, setBets] = useState<Record<string, number>>({}); // normalized keys for server
-  const [betsDisplay, setBetsDisplay] = useState<Record<string, number>>({}); // UI keys
+  const [bets, setBets] = useState<Record<string, number>>({});
+  const [betsDisplay, setBetsDisplay] = useState<Record<string, number>>({});
   const betsRef = useRef<Record<string, number>>(bets);
   const betsDisplayRef = useRef<Record<string, number>>(betsDisplay);
   const lastBetRef = useRef<Record<string, number>>({});
 
-  // helpers that sync refs
   const setBetsAndRef = (next: Record<string, number>) => {
     betsRef.current = next;
     setBets(next);
-    console.log("[setBetsAndRef] updated betsRef:", next);
+    console.log("🟢 [setBetsAndRef] updated betsRef:", next);
   };
   const setBetsDisplayAndRef = (next: Record<string, number>) => {
     betsDisplayRef.current = next;
     setBetsDisplay(next);
-    console.log("[setBetsDisplayAndRef] updated betsDisplayRef:", next);
+    console.log("🟢 [setBetsDisplayAndRef] updated betsDisplayRef:", next);
   };
 
-  // placeBet: emits to server and updates local normalized/display maps
-  async function placeBet(
+  function placeBet(
     socketRef: SocketRefCurrent,
     displayKey: string,
     amount: number,
@@ -35,25 +38,49 @@ export function useBets({
   ) {
     const socket = socketRef.current;
     if (!socket) {
-      console.warn("placeBet: socket not initialized");
+      console.warn("🚫 placeBet: socket not initialized");
       return;
     }
 
     let payload: BetPayload;
     try {
+      // Normalizamos la clave aquí
       payload = buildBetPayload(displayKey, amount, roomId);
-      console.log(
-        "[placeBet] displayKey:",
-        displayKey,
-        "amount:",
-        amount,
-        "payload:",
-        payload
-      );
     } catch (err) {
-      console.error("placeBet: buildBetPayload failed:", err);
+      console.error("❌ placeBet: buildBetPayload failed:", err);
       return;
     }
+
+    // ⭐ PASO DE VALIDACIÓN: Usamos la clave normalizada
+    const proposedBets = { ...betsRef.current };
+    proposedBets[payload.betKey] = (proposedBets[payload.betKey] || 0) + amount;
+
+    console.log(
+      `🔍 [Validación] Evaluando nueva apuesta: "${displayKey}" | Clave normalizada: "${payload.betKey}"`
+    );
+    console.log("📋 [Estado Actual] Apuestas existentes:", betsRef.current);
+    console.log("🔮 [Estado Propuesto] Apuestas para validar:", proposedBets);
+
+    if (!isBetAllowed(payload.betKey, proposedBets)) {
+      console.warn(
+        `🚫 [Validación] Apuesta no permitida: "${displayKey}". Conflicto detectado.`
+      );
+      try {
+        sound?.playSound?.("error");
+      } catch {
+        /* noop */
+      }
+      return;
+    }
+
+    setBetsAndRef(proposedBets);
+
+    const nextDisplay = { ...betsDisplayRef.current };
+    nextDisplay[displayKey] = (nextDisplay[displayKey] || 0) + amount;
+    setBetsDisplayAndRef(nextDisplay);
+
+    lastBetRef.current = { ...nextDisplay };
+    console.log("💾 [placeBet] lastBetRef updated:", lastBetRef.current);
 
     socket.emit(
       "place-bet",
@@ -63,22 +90,6 @@ export function useBets({
       }
     );
 
-    // update normalized bets
-    const nextNormalized = { ...betsRef.current };
-    nextNormalized[payload.betKey] =
-      (nextNormalized[payload.betKey] || 0) + amount;
-    setBetsAndRef(nextNormalized);
-
-    // update display bets
-    const nextDisplay = { ...betsDisplayRef.current };
-    nextDisplay[displayKey] = (nextDisplay[displayKey] || 0) + amount;
-    setBetsDisplayAndRef(nextDisplay);
-
-    // save for repeat
-    lastBetRef.current = { ...nextDisplay };
-    console.log("[placeBet] lastBetRef updated:", lastBetRef.current);
-
-    // feedback
     try {
       sound?.playSound?.("chip");
     } catch {
@@ -88,7 +99,7 @@ export function useBets({
 
   function clearBets(socketRef: SocketRefCurrent, roomId?: string) {
     const socket = socketRef.current;
-    console.log("[clearBets] clearing bets for room:", roomId);
+    console.log("🧹 [clearBets] clearing bets for room:", roomId);
     if (socket) {
       socket.emit(
         "clear-bets",
@@ -98,7 +109,6 @@ export function useBets({
         }
       );
     }
-
     setBetsAndRef({});
     setBetsDisplayAndRef({});
     try {
@@ -115,13 +125,24 @@ export function useBets({
 
     const [lastDisplayKey, lastAmount] =
       displayEntries[displayEntries.length - 1];
-    console.log("[undoBet] undoing last bet:", lastDisplayKey, lastAmount);
+    console.log("↩️ [undoBet] undoing last bet:", lastDisplayKey, lastAmount);
 
-    let normalizedKey: string | null = null;
-    try {
-      normalizedKey = buildBetPayload(lastDisplayKey, 1).betKey;
-    } catch {
-      normalizedKey = null;
+    // ⭐ Usamos normalizeBetKey para encontrar la clave correcta en betsRef
+    const normalizedKey = normalizeBetKey(lastDisplayKey);
+
+    const nextDisplay: Record<string, number> = { ...betsDisplayRef.current };
+    nextDisplay[lastDisplayKey] =
+      (nextDisplay[lastDisplayKey] || 0) - lastAmount;
+    if (nextDisplay[lastDisplayKey] <= 0) delete nextDisplay[lastDisplayKey];
+    setBetsDisplayAndRef(nextDisplay);
+
+    if (normalizedKey && betsRef.current[normalizedKey]) {
+      const nextNormalized: Record<string, number> = { ...betsRef.current };
+      nextNormalized[normalizedKey] =
+        (nextNormalized[normalizedKey] || 0) - lastAmount;
+      if (nextNormalized[normalizedKey] <= 0)
+        delete nextNormalized[normalizedKey];
+      setBetsAndRef(nextNormalized);
     }
 
     if (socket) {
@@ -133,22 +154,6 @@ export function useBets({
         }
       );
     }
-
-    const nextDisplay: Record<string, number> = { ...betsDisplayRef.current };
-    nextDisplay[lastDisplayKey] =
-      (nextDisplay[lastDisplayKey] || 0) - lastAmount;
-    if (nextDisplay[lastDisplayKey] <= 0) delete nextDisplay[lastDisplayKey];
-    setBetsDisplayAndRef(nextDisplay);
-
-    if (normalizedKey) {
-      const nextNormalized: Record<string, number> = { ...betsRef.current };
-      nextNormalized[normalizedKey] =
-        (nextNormalized[normalizedKey] || 0) - lastAmount;
-      if (nextNormalized[normalizedKey] <= 0)
-        delete nextNormalized[normalizedKey];
-      setBetsAndRef(nextNormalized);
-    }
-
     try {
       sound?.playSound?.("button");
     } catch {
@@ -161,33 +166,32 @@ export function useBets({
       return;
 
     const lastDisplay = lastBetRef.current;
-    console.log("[repeatBet] repeating bets:", lastDisplay);
+    console.log("🔁 [repeatBet] repeating bets:", lastDisplay);
 
-    const normalizedMap: Record<string, number> = {};
+    const normalizedBets: Record<string, number> = {};
     for (const displayKey in lastDisplay) {
       const amount = lastDisplay[displayKey];
       try {
         const payload = buildBetPayload(displayKey, amount, roomId);
-        normalizedMap[payload.betKey] =
-          (normalizedMap[payload.betKey] || 0) + amount;
+        normalizedBets[payload.betKey] =
+          (normalizedBets[payload.betKey] || 0) + amount;
       } catch (err) {
-        console.warn("repeatBet: normalize failed for", displayKey, err);
+        console.warn("⚠️ repeatBet: normalize failed for", displayKey, err);
       }
     }
 
+    setBetsAndRef(normalizedBets);
+    setBetsDisplayAndRef({ ...lastDisplay });
     const socket = socketRef.current;
     if (socket) {
       socket.emit(
         "repeat-bet",
-        { roomId, bets: normalizedMap },
+        { roomId, bets: normalizedBets },
         (ack: { success: boolean; message?: string }) => {
           console.log("⬅️ repeat-bet ack:", ack);
         }
       );
     }
-
-    setBetsAndRef({ ...normalizedMap });
-    setBetsDisplayAndRef({ ...lastDisplay });
     try {
       sound?.playSound?.("button");
     } catch {
@@ -196,22 +200,45 @@ export function useBets({
   }
 
   function doubleBet(socketRef: SocketRefCurrent, roomId?: string) {
+    if (Object.keys(betsDisplayRef.current).length === 0) return;
+
     const doubledDisplay: Record<string, number> = {};
+    const doubledNormalized: Record<string, number> = {};
+
+    // First, calculate the new doubled bet objects
     Object.keys(betsDisplayRef.current).forEach((k) => {
       doubledDisplay[k] = (betsDisplayRef.current[k] || 0) * 2;
     });
-    const doubledNormalized: Record<string, number> = {};
+
     Object.keys(betsRef.current).forEach((k) => {
       doubledNormalized[k] = (betsRef.current[k] || 0) * 2;
     });
 
+    // ⭐ Validation Check for Doubled Bets ⭐
+    // Loop through the doubled bets and check for conflicts
+    for (const betKey of Object.keys(doubledNormalized)) {
+      if (!isBetAllowed(betKey, doubledNormalized)) {
+        console.warn(
+          `🚫 [Validación] No se puede duplicar la apuesta. La nueva combinación no es válida.`
+        );
+        try {
+          sound?.playSound?.("error");
+        } catch {
+          /* noop */
+        }
+        return; // Exit the function if any conflict is found
+      }
+    }
+
     console.log(
-      "[doubleBet] doubledDisplay:",
+      "2️⃣ [doubleBet] doubledDisplay:",
       doubledDisplay,
       "doubledNormalized:",
       doubledNormalized
     );
 
+    setBetsAndRef(doubledNormalized);
+    setBetsDisplayAndRef(doubledDisplay);
     const socket = socketRef.current;
     if (socket) {
       socket.emit(
@@ -222,9 +249,6 @@ export function useBets({
         }
       );
     }
-
-    setBetsAndRef(doubledNormalized);
-    setBetsDisplayAndRef(doubledDisplay);
     try {
       sound?.playSound?.("button");
     } catch {

@@ -3,15 +3,15 @@
  * Utility para normalizar claves de apuesta (UI -> servidor)
  *
  * Regresa claves en formatos que tu backend debe reconocer:
- *  - straight_<num>
- *  - split_<a>_<b>
- *  - trio_<a>_<b>_<c>
- *  - street_<start>
- *  - corner_<a>_<b>_<c>_<d>
- *  - line_<start>_<end>
- *  - column_<1|2|3>
- *  - dozen_<1|2|3>
- *  - even_money_<red|black|even|odd|low|high>
+ * - straight_<num>
+ * - split_<a>_<b>
+ * - trio_<a>_<b>_<c>
+ * - street_<start>
+ * - corner_<a>_<b>_<c>_<d>
+ * - line_<start>_<end>
+ * - column_<1|2|3>
+ * - dozen_<1|2|3>
+ * - even_money_<red|black|even|odd|low|high>
  *
  * Nota: idealmente la UI debería enviar un objeto semántico en vez de strings,
  * pero esto ayuda a normalizar inputs de texto / etiquetas.
@@ -32,13 +32,24 @@ export function normalizeBetKey(displayKey: string): string {
   const raw = String(displayKey).trim();
   const k = raw.toLowerCase().replace(/\s+/g, " ");
 
+  // Even money bets / colors / parity / ranges (mejor ponerlas primero para evitar conflictos)
+  // ✅ CORREGIDO: Manejar las apuestas de rango "1-18" y "19-36" aquí.
+  if (k === "1-18" || k.includes("bajo") || k.includes("low"))
+    return "even_money_low";
+  if (k === "19-36" || k.includes("alto") || k.includes("high"))
+    return "even_money_high";
+  if (k.includes("negro") || k === "black") return "even_money_black";
+  if (k.includes("rojo") || k === "red") return "even_money_red";
+  if (k.includes("impar") || k === "odd") return "even_money_odd";
+  if (k.includes("par") || k === "even") return "even_money_even";
+
   // Straight (solo un número)
   const onlyNum = k.match(/^(\d{1,2})$/);
   if (onlyNum) {
     return `straight_${onlyNum[1]}`;
   }
 
-  // Dash splits like "17-18" or "17/18"
+  // Dash splits like "17-18" or "17/18" (esta lógica es para splits de 2 números adyacentes, no para rangos)
   const dash = k.match(/^(\d{1,2})\s*[-/]\s*(\d{1,2})$/);
   if (dash) {
     const a = Number(dash[1]);
@@ -53,14 +64,6 @@ export function normalizeBetKey(displayKey: string): string {
   ) {
     return k.replace(/\s+/g, "_");
   }
-
-  // Even money bets / colors / parity / ranges
-  if (k.includes("negro") || k === "black") return "even_money_black";
-  if (k.includes("rojo") || k === "red") return "even_money_red";
-  if (k.includes("par") || k === "even") return "even_money_even";
-  if (k.includes("impar") || k === "odd") return "even_money_odd";
-  if (k.includes("alto") || k.includes("high")) return "even_money_high";
-  if (k.includes("bajo") || k.includes("low")) return "even_money_low";
 
   // Docena: ejemplos: "2os 12", "2da docena", "segunda docena", "docena 3"
   if (k.includes("docen") || /\b12\b/.test(k) || /\bdozen\b/.test(k)) {
